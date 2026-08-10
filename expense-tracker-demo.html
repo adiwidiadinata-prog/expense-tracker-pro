@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<title>Expense Tracker PWA</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f172a; color: #e2e8f0; min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+}
+.container { max-width: 480px; margin: 0 auto; padding: 16px; }
+.card {
+  background: #1e293b; border-radius: 12px; padding: 16px;
+  margin-bottom: 12px; border: 1px solid #334155;
+}
+.btn {
+  width: 100%; padding: 14px; border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s;
+}
+.btn-primary { background: #3b82f6; color: white; }
+.btn-primary:active { background: #2563eb; transform: scale(0.98); }
+.btn-success { background: #22c55e; color: white; }
+.btn-danger { background: #ef4444; color: white; }
+.btn-outline { background: transparent; border: 1px solid #475569; color: #e2e8f0; }
+.input {
+  width: 100%; padding: 12px 14px; background: #334155; border: 1px solid #475569;
+  border-radius: 10px; color: #f8fafc; font-size: 15px; outline: none;
+}
+.input:focus { border-color: #3b82f6; }
+.label { font-size: 13px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 500; }
+.header { text-align: center; padding: 24px 16px 16px; }
+.header h1 { font-size: 22px; color: #f8fafc; margin-bottom: 4px; }
+.header p { font-size: 13px; color: #94a3b8; }
+.tabs { display: flex; gap: 8px; padding: 0 16px 16px; }
+.tab { flex: 1; padding: 10px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; background: #334155; color: #94a3b8; }
+.tab.active { background: #3b82f6; color: white; }
+.page { display: none; }
+.page.active { display: block; }
+.camera-btn {
+  width: 100%; padding: 40px; border: 2px dashed #3b82f6; border-radius: 16px;
+  background: #1e293b; text-align: center; cursor: pointer; margin-bottom: 16px;
+}
+.camera-btn .icon { font-size: 48px; margin-bottom: 8px; }
+.camera-btn .title { color: #60a5fa; font-weight: 600; font-size: 15px; }
+.camera-btn .sub { color: #64748b; font-size: 12px; margin-top: 4px; }
+.status-pending { color: #f59e0b; }
+.status-approved { color: #22c55e; }
+.status-rejected { color: #ef4444; }
+.expense-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px;
+  background: #0f172a; border-radius: 10px; margin-bottom: 8px;
+}
+.expense-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.expense-info { flex: 1; }
+.expense-amount { font-weight: 600; color: #f8fafc; }
+.expense-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+.badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-pending { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b; }
+.badge-approved { background: #22c55e20; color: #22c55e; border: 1px solid #22c55e; }
+.badge-rejected { background: #ef444420; color: #ef4444; border: 1px solid #ef4444; }
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.summary-card { background: #0f172a; border-radius: 10px; padding: 14px; text-align: center; }
+.summary-label { font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+.summary-value { font-size: 18px; font-weight: 700; color: #f8fafc; }
+.approval-btns { display: flex; gap: 8px; margin-top: 8px; }
+.approval-btns .btn { padding: 8px; font-size: 12px; flex: 1; }
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px);
+  background: #1e293b; color: #f8fafc; padding: 12px 24px; border-radius: 12px;
+  border: 1px solid #475569; transition: transform 0.3s; z-index: 1000;
+  font-size: 14px; font-weight: 500;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.hidden { display: none !important; }
+.login-form { max-width: 360px; margin: 0 auto; padding-top: 60px; }
+.month-selector { display: flex; gap: 8px; margin-bottom: 16px; }
+.month-selector select { flex: 1; }
+.receipt-thumb { width: 60px; height: 60px; background: #334155; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; flex-shrink: 0; }
+.empty-state { text-align: center; padding: 40px 20px; color: #64748b; }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="loginPage" class="page active">
+  <div class="login-form">
+    <div class="header">
+      <div style="font-size: 56px; margin-bottom: 8px;">💰</div>
+      <h1>Expense Tracker</h1>
+      <p>Catat & kelola pengeluaran tim</p>
+    </div>
+    <div class="card">
+      <label class="label">Pilih Role</label>
+      <div class="tabs" style="padding: 0; margin-bottom: 16px;">
+        <button class="tab active" onclick="setRole('karyawan')" id="roleKaryawan">👤 Karyawan</button>
+        <button class="tab" onclick="setRole('owner')" id="roleOwner">👔 Owner</button>
+      </div>
+      <label class="label">Nama</label>
+      <input type="text" id="loginName" class="input" placeholder="Masukkan nama" value="Budi">
+      <label class="label" style="margin-top: 12px;">PIN (4 digit)</label>
+      <input type="password" id="loginPin" class="input" placeholder="1234" value="1234" maxlength="4">
+      <button class="btn btn-primary" style="margin-top: 16px;" onclick="doLogin()">Masuk</button>
+      <p style="text-align: center; margin-top: 12px; font-size: 12px; color: #64748b;">
+        Demo: PIN 1234 untuk semua akun
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp" class="page">
+  <!-- Header -->
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px;">
+    <div>
+      <h2 id="greeting" style="font-size: 18px;">Halo, Budi 👋</h2>
+      <p id="roleDisplay" style="font-size: 12px; color: #94a3b8;">Karyawan</p>
+    </div>
+    <button class="btn btn-outline" style="width: auto; padding: 8px 14px; font-size: 12px;" onclick="doLogout()">Keluar</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('input')" id="tabInput">📝 Input</button>
+    <button class="tab" onclick="switchTab('riwayat')" id="tabRiwayat">📋 Riwayat</button>
+    <button class="tab" onclick="switchTab('laporan')" id="tabLaporan" style="display:none;">📊 Laporan</button>
+  </div>
+
+  <!-- TAB: INPUT -->
+  <div id="pageInput" class="page active container">
+    <div class="camera-btn" onclick="simulateCamera()">
+      <div class="icon">📷</div>
+      <div class="title">Tap untuk foto struk</div>
+      <div class="sub">Atau upload dari galeri</div>
+    </div>
+
+    <!-- Preview (hidden initially) -->
+    <div id="previewBox" class="card hidden" style="display: flex; gap: 12px; align-items: center;">
+      <div class="receipt-thumb">🧾</div>
+      <div style="flex: 1;">
+        <p style="font-size: 13px; color: #f8fafc;">struk_001.jpg</p>
+        <p style="font-size: 11px; color: #22c55e;">✅ Terupload</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="label">Nominal (Rp)</label>
+      <div style="display: flex; gap: 8px;">
+        <span style="display: flex; align-items: center; padding: 0 14px; background: #334155; border-radius: 10px; font-weight: 600;">Rp</span>
+        <input type="number" id="amountInput" class="input" placeholder="0" value="50000">
+      </div>
+      <p style="font-size: 11px; color: #22c55e; margin-top: 6px;">💡 Terdeteksi otomatis dari struk</p>
+
+      <label class="label" style="margin-top: 14px;">Kategori</label>
+      <select id="categoryInput" class="input">
+        <option value="Makan & Minum">🍽️ Makan & Minum</option>
+        <option value="Transportasi">🚗 Transportasi</option>
+        <option value="Operasional">📦 Operasional</option>
+        <option value="Pembelian Barang">🛒 Pembelian Barang</option>
+        <option value="Lainnya">📋 Lainnya</option>
+      </select>
+
+      <label class="label" style="margin-top: 14px;">Catatan (opsional)</label>
+      <input type="text" id="noteInput" class="input" placeholder="Makan siang meeting client">
+
+      <button class="btn btn-primary" style="margin-top: 16px;" onclick="submitExpense()">
+        🚀 Kirim Pengeluaran
+      </button>
+    </div>
+  </div>
+
+  <!-- TAB: RIWAYAT -->
+  <div id="pageRiwayat" class="page container">
+    <div id="riwayatList">
+      <!-- Dynamic content -->
+    </div>
+  </div>
+
+  <!-- TAB: LAPORAN (Owner only) -->
+  <div id="pageLaporan" class="page container">
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-label">Pengeluaran Owner</div>
+        <div class="summary-value" id="ownerTotal" style="color: #3b82f6;">Rp 0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Reimburse Karyawan</div>
+        <div class="summary-value" id="reimburseTotal" style="color: #f59e0b;">Rp 0</div>
+      </div>
+    </div>
+    <div class="card" style="text-align: center; margin-bottom: 16px;">
+      <p style="font-size: 12px; color: #94a3b8;">Grand Total Bulan Ini</p>
+      <p id="grandTotal" style="font-size: 28px; font-weight: 700; color: #22c55e; margin-top: 4px;">Rp 0</p>
+    </div>
+
+    <div class="month-selector">
+      <select id="reportMonth" class="input" onchange="updateReport()">
+        <option value="2026-08">Agustus 2026</option>
+        <option value="2026-07">Juli 2026</option>
+      </select>
+      <button class="btn btn-outline" style="width: auto; padding: 12px 16px;" onclick="exportReport()">📥 Export</button>
+    </div>
+
+    <h3 style="font-size: 14px; color: #94a3b8; margin-bottom: 10px;">📝 Daftar Pengeluaran</h3>
+    <div id="reportList">
+      <!-- Dynamic content -->
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast">Notifikasi</div>
+
+<script>
+// ==================== DATA STORE (Simulasi Database) ====================
+let currentUser = null;
+let currentRole = 'karyawan';
+let expenses = JSON.parse(localStorage.getItem('expenses')) || [
+  { id: 'exp_001', userId: 'budi', userName: 'Budi', amount: 50000, category: 'Makan & Minum', note: 'Makan siang meeting', type: 'reimburse', status: 'pending', month: '2026-08', createdAt: '2026-08-02' },
+  { id: 'exp_002', userId: 'ani', userName: 'Ani', amount: 30000, category: 'Transportasi', note: '', type: 'reimburse', status: 'approved', month: '2026-08', createdAt: '2026-08-01' },
+  { id: 'exp_003', userId: 'budi', userName: 'Budi', amount: 20000, category: 'Operasional', note: 'Beli tinta printer', type: 'reimburse', status: 'rejected', month: '2026-07', createdAt: '2026-07-31' },
+  { id: 'exp_004', userId: 'owner', userName: 'Pak Owner', amount: 1200000, category: 'Operasional', note: 'Sewa kantor', type: 'owner', status: 'approved', month: '2026-08', createdAt: '2026-08-01' },
+  { id: 'exp_005', userId: 'owner', userName: 'Pak Owner', amount: 150000, category: 'Pembelian Barang', note: 'Kertas A4 5 rim', type: 'owner', status: 'approved', month: '2026-08', createdAt: '2026-08-02' }
+];
+
+const categoryIcons = {
+  'Makan & Minum': '🍽️',
+  'Transportasi': '🚗',
+  'Operasional': '📦',
+  'Pembelian Barang': '🛒',
+  'Lainnya': '📋'
+};
+
+// ==================== AUTH ====================
+function setRole(role) {
+  currentRole = role;
+  document.getElementById('roleKaryawan').classList.toggle('active', role === 'karyawan');
+  document.getElementById('roleOwner').classList.toggle('active', role === 'owner');
+}
+
+function doLogin() {
+  const name = document.getElementById('loginName').value;
+  const pin = document.getElementById('loginPin').value;
+  if (!name) { showToast('❌ Masukkan nama'); return; }
+  if (pin !== '1234') { showToast('❌ PIN salah (coba: 1234)'); return; }
+
+  currentUser = { name, role: currentRole, id: currentRole === 'owner' ? 'owner' : name.toLowerCase() };
+  document.getElementById('loginPage').classList.remove('active');
+  document.getElementById('mainApp').classList.add('active');
+  document.getElementById('greeting').textContent = `Halo, ${name} ${currentRole === 'owner' ? '👔' : '👋'}`;
+  document.getElementById('roleDisplay').textContent = currentRole === 'owner' ? 'Owner / Manager' : 'Karyawan';
+
+  // Show laporan tab for owner
+  document.getElementById('tabLaporan').style.display = currentRole === 'owner' ? 'block' : 'none';
+
+  showToast(`✅ Selamat datang, ${name}!`);
+  renderRiwayat();
+  if (currentRole === 'owner') updateReport();
+}
+
+function doLogout() {
+  currentUser = null;
+  document.getElementById('mainApp').classList.remove('active');
+  document.getElementById('loginPage').classList.add('active');
+  switchTab('input');
+}
+
+// ==================== NAVIGATION ====================
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+
+  if (tab === 'input') { document.getElementById('tabInput').classList.add('active'); document.getElementById('pageInput').classList.add('active'); }
+  if (tab === 'riwayat') { document.getElementById('tabRiwayat').classList.add('active'); document.getElementById('pageRiwayat').classList.add('active'); renderRiwayat(); }
+  if (tab === 'laporan') { document.getElementById('tabLaporan').classList.add('active'); document.getElementById('pageLaporan').classList.add('active'); updateReport(); }
+}
+
+// ==================== CAMERA ====================
+function simulateCamera() {
+  document.getElementById('previewBox').classList.remove('hidden');
+  showToast('📷 Foto struk diambil!');
+}
+
+// ==================== SUBMIT EXPENSE ====================
+function submitExpense() {
+  const amount = parseInt(document.getElementById('amountInput').value);
+  const category = document.getElementById('categoryInput').value;
+  const note = document.getElementById('noteInput').value;
+
+  if (!amount || amount <= 0) { showToast('❌ Masukkan nominal'); return; }
+
+  const newExpense = {
+    id: 'exp_' + Date.now(),
+    userId: currentUser.id,
+    userName: currentUser.name,
+    amount,
+    category,
+    note,
+    type: currentRole,
+    status: currentRole === 'owner' ? 'approved' : 'pending',
+    month: '2026-08',
+    createdAt: new Date().toISOString().split('T')[0]
+  };
+
+  expenses.push(newExpense);
+  localStorage.setItem('expenses', JSON.stringify(expenses));
+
+  // Reset form
+  document.getElementById('amountInput').value = '';
+  document.getElementById('noteInput').value = '';
+  document.getElementById('previewBox').classList.add('hidden');
+
+  showToast(currentRole === 'owner' ? '✅ Pengeluaran tersimpan!' : '✅ Pengeluaran terkirim! Menunggu approval...');
+
+  // Auto switch to riwayat
+  setTimeout(() => switchTab('riwayat'), 800);
+}
+
+// ==================== RIWAYAT ====================
+function renderRiwayat() {
+  const list = document.getElementById('riwayatList');
+  let filtered = expenses;
+
+  if (currentRole === 'karyawan') {
+    filtered = expenses.filter(e => e.userId === currentUser.id);
+  }
+
+  // Sort by date desc
+  filtered = filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Belum ada pengeluaran</p></div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(exp => {
+    const icon = categoryIcons[exp.category] || '📋';
+    const statusClass = exp.status === 'pending' ? 'status-pending' : exp.status === 'approved' ? 'status-approved' : 'status-rejected';
+    const badgeClass = exp.status === 'pending' ? 'badge-pending' : exp.status === 'approved' ? 'badge-approved' : 'badge-rejected';
+    const statusText = exp.status === 'pending' ? '⏳ Pending' : exp.status === 'approved' ? '✅ Approved' : '❌ Rejected';
+
+    return `
+      <div class="expense-item">
+        <div class="expense-icon" style="background: ${exp.status === 'pending' ? '#f59e0b30' : exp.status === 'approved' ? '#22c55e30' : '#ef444430'};">${icon}</div>
+        <div class="expense-info">
+          <div class="expense-amount">Rp ${formatRupiah(exp.amount)}</div>
+          <div class="expense-meta">${exp.category} • ${exp.createdAt} ${exp.userName !== currentUser.name ? '• ' + exp.userName : ''}</div>
+        </div>
+        <span class="badge ${badgeClass}">${statusText}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ==================== LAPORAN (OWNER) ====================
+function updateReport() {
+  if (currentRole !== 'owner') return;
+
+  const month = document.getElementById('reportMonth').value;
+  const monthExpenses = expenses.filter(e => e.month === month && e.status === 'approved');
+
+  const ownerTotal = monthExpenses.filter(e => e.type === 'owner').reduce((sum, e) => sum + e.amount, 0);
+  const reimburseTotal = monthExpenses.filter(e => e.type === 'reimburse').reduce((sum, e) => sum + e.amount, 0);
+  const grandTotal = ownerTotal + reimburseTotal;
+
+  document.getElementById('ownerTotal').textContent = 'Rp ' + formatRupiah(ownerTotal);
+  document.getElementById('reimburseTotal').textContent = 'Rp ' + formatRupiah(reimburseTotal);
+  document.getElementById('grandTotal').textContent = 'Rp ' + formatRupiah(grandTotal);
+
+  // Render list with approval buttons for pending
+  const list = document.getElementById('reportList');
+  const allMonth = expenses.filter(e => e.month === month).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  if (allMonth.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Tidak ada data bulan ini</p></div>';
+    return;
+  }
+
+  list.innerHTML = allMonth.map(exp => {
+    const icon = categoryIcons[exp.category] || '📋';
+    const borderColor = exp.status === 'pending' ? '#f59e0b' : exp.status === 'approved' ? '#22c55e' : '#ef4444';
+    const badgeClass = exp.status === 'pending' ? 'badge-pending' : exp.status === 'approved' ? 'badge-approved' : 'badge-rejected';
+    const statusText = exp.status === 'pending' ? '⏳ Pending' : exp.status === 'approved' ? '✅ Approved' : '❌ Rejected';
+
+    const approvalBtns = exp.status === 'pending' && exp.type === 'reimburse' ? `
+      <div class="approval-btns">
+        <button class="btn btn-success" onclick="approveExpense('${exp.id}')">✓ Approve</button>
+        <button class="btn btn-danger" onclick="rejectExpense('${exp.id}')">✗ Reject</button>
+      </div>
+    ` : '';
+
+    return `
+      <div class="card" style="border-left: 3px solid ${borderColor}; margin-bottom: 10px;">
+        <div style="display: flex; gap: 12px; align-items: flex-start;">
+          <div class="receipt-thumb">🧾</div>
+          <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <p style="font-weight: 600; color: #f8fafc;">Rp ${formatRupiah(exp.amount)}</p>
+                <p style="font-size: 11px; color: #94a3b8;">${icon} ${exp.category} • ${exp.userName}</p>
+                <p style="font-size: 11px; color: #64748b;">${exp.createdAt} ${exp.note ? '• ' + exp.note : ''}</p>
+              </div>
+              <span class="badge ${badgeClass}" style="font-size: 10px;">${statusText}</span>
+            </div>
+            ${approvalBtns}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function approveExpense(id) {
+  const exp = expenses.find(e => e.id === id);
+  if (exp) { exp.status = 'approved'; exp.approvedBy = currentUser.id; }
+  localStorage.setItem('expenses', JSON.stringify(expenses));
+  showToast('✅ Pengeluaran di-approve');
+  updateReport();
+}
+
+function rejectExpense(id) {
+  const exp = expenses.find(e => e.id === id);
+  if (exp) { exp.status = 'rejected'; }
+  localStorage.setItem('expenses', JSON.stringify(expenses));
+  showToast('❌ Pengeluaran di-reject');
+  updateReport();
+}
+
+function exportReport() {
+  const month = document.getElementById('reportMonth').value;
+  const monthExpenses = expenses.filter(e => e.month === month);
+
+  let csv = 'Tanggal,Nama,Kategori,Nominal,Tipe,Status\n';
+  monthExpenses.forEach(e => {
+    csv += `${e.createdAt},${e.userName},${e.category},${e.amount},${e.type},${e.status}\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `laporan_pengeluaran_${month}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📥 Laporan di-download!');
+}
+
+// ==================== UTILS ====================
+function formatRupiah(num) {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ==================== INIT ====================
+// Load data from localStorage on start
+if (localStorage.getItem('expenses')) {
+  expenses = JSON.parse(localStorage.getItem('expenses'));
+}
+</script>
+</body>
+</html>

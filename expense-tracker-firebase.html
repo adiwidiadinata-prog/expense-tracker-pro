@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<title>Expense Tracker PWA - Firebase + OCR</title>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+
+<!-- Tesseract.js OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f172a; color: #e2e8f0; min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+}
+.container { max-width: 480px; margin: 0 auto; padding: 16px; }
+.card {
+  background: #1e293b; border-radius: 12px; padding: 16px;
+  margin-bottom: 12px; border: 1px solid #334155;
+}
+.btn {
+  width: 100%; padding: 14px; border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s;
+}
+.btn-primary { background: #3b82f6; color: white; }
+.btn-primary:active { background: #2563eb; transform: scale(0.98); }
+.btn-success { background: #22c55e; color: white; }
+.btn-danger { background: #ef4444; color: white; }
+.btn-outline { background: transparent; border: 1px solid #475569; color: #e2e8f0; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.input {
+  width: 100%; padding: 12px 14px; background: #334155; border: 1px solid #475569;
+  border-radius: 10px; color: #f8fafc; font-size: 15px; outline: none;
+}
+.input:focus { border-color: #3b82f6; }
+.label { font-size: 13px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 500; }
+.header { text-align: center; padding: 24px 16px 16px; }
+.header h1 { font-size: 22px; color: #f8fafc; margin-bottom: 4px; }
+.header p { font-size: 13px; color: #94a3b8; }
+.tabs { display: flex; gap: 8px; padding: 0 16px 16px; }
+.tab { flex: 1; padding: 10px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; background: #334155; color: #94a3b8; }
+.tab.active { background: #3b82f6; color: white; }
+.page { display: none; }
+.page.active { display: block; }
+.camera-btn {
+  width: 100%; padding: 40px; border: 2px dashed #3b82f6; border-radius: 16px;
+  background: #1e293b; text-align: center; cursor: pointer; margin-bottom: 16px;
+  position: relative; overflow: hidden;
+}
+.camera-btn .icon { font-size: 48px; margin-bottom: 8px; }
+.camera-btn .title { color: #60a5fa; font-weight: 600; font-size: 15px; }
+.camera-btn .sub { color: #64748b; font-size: 12px; margin-top: 4px; }
+.camera-btn input[type="file"] {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer;
+}
+.status-pending { color: #f59e0b; }
+.status-approved { color: #22c55e; }
+.status-rejected { color: #ef4444; }
+.expense-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px;
+  background: #0f172a; border-radius: 10px; margin-bottom: 8px;
+}
+.expense-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.expense-info { flex: 1; }
+.expense-amount { font-weight: 600; color: #f8fafc; }
+.expense-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+.badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-pending { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b; }
+.badge-approved { background: #22c55e20; color: #22c55e; border: 1px solid #22c55e; }
+.badge-rejected { background: #ef444420; color: #ef4444; border: 1px solid #ef4444; }
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.summary-card { background: #0f172a; border-radius: 10px; padding: 14px; text-align: center; }
+.summary-label { font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+.summary-value { font-size: 18px; font-weight: 700; color: #f8fafc; }
+.approval-btns { display: flex; gap: 8px; margin-top: 8px; }
+.approval-btns .btn { padding: 8px; font-size: 12px; flex: 1; }
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px);
+  background: #1e293b; color: #f8fafc; padding: 12px 24px; border-radius: 12px;
+  border: 1px solid #475569; transition: transform 0.3s; z-index: 1000;
+  font-size: 14px; font-weight: 500;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.hidden { display: none !important; }
+.login-form { max-width: 360px; margin: 0 auto; padding-top: 40px; }
+.month-selector { display: flex; gap: 8px; margin-bottom: 16px; }
+.month-selector select { flex: 1; }
+.receipt-thumb { width: 60px; height: 60px; background: #334155; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; flex-shrink: 0; overflow: hidden; }
+.receipt-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.empty-state { text-align: center; padding: 40px 20px; color: #64748b; }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+.ocr-loading { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.ocr-loading .spinner { width: 16px; height: 16px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.config-box { background: #0f172a; border-radius: 8px; padding: 12px; margin-top: 12px; }
+.config-box input { margin-bottom: 8px; font-size: 12px; }
+.config-box .label { font-size: 11px; }
+</style>
+</head>
+<body>
+
+<!-- ==================== LOGIN PAGE ==================== -->
+<div id="loginPage" class="page active">
+  <div class="login-form">
+    <div class="header">
+      <div style="font-size: 56px; margin-bottom: 8px;">💰</div>
+      <h1>Expense Tracker</h1>
+      <p>Firebase + OCR Edition</p>
+    </div>
+
+    <!-- Firebase Config Input -->
+    <div class="card">
+      <p class="label" style="color: #f59e0b;">⚙️ Konfigurasi Firebase (WAJIB)</p>
+      <p style="font-size: 11px; color: #64748b; margin-bottom: 10px;">
+        Masukkan config dari Firebase Console → Project Settings → General → Your apps → Web
+      </p>
+      <div class="config-box">
+        <label class="label">apiKey</label>
+        <input type="text" id="cfgApiKey" class="input" placeholder="AIzaSy...">
+        <label class="label">authDomain</label>
+        <input type="text" id="cfgAuthDomain" class="input" placeholder="your-app.firebaseapp.com">
+        <label class="label">projectId</label>
+        <input type="text" id="cfgProjectId" class="input" placeholder="your-project-id">
+        <label class="label">storageBucket</label>
+        <input type="text" id="cfgStorageBucket" class="input" placeholder="your-app.appspot.com">
+        <label class="label">messagingSenderId</label>
+        <input type="text" id="cfgMessagingSenderId" class="input" placeholder="123456789">
+        <label class="label">appId</label>
+        <input type="text" id="cfgAppId" class="input" placeholder="1:123...:web:abc...">
+        <button class="btn btn-primary" style="margin-top: 8px;" onclick="saveFirebaseConfig()">💾 Simpan Config</button>
+      </div>
+      <p style="font-size: 11px; color: #64748b; margin-top: 10px; text-align: center;">
+        💡 Config akan tersimpan di browser. Atau gunakan <strong>Mode Demo</strong> di bawah.
+      </p>
+    </div>
+
+    <div class="card" style="margin-top: 12px;">
+      <label class="label">Pilih Role</label>
+      <div class="tabs" style="padding: 0; margin-bottom: 16px;">
+        <button class="tab active" onclick="setRole('karyawan')" id="roleKaryawan">👤 Karyawan</button>
+        <button class="tab" onclick="setRole('owner')" id="roleOwner">👔 Owner</button>
+      </div>
+
+      <label class="label">Email</label>
+      <input type="email" id="loginEmail" class="input" placeholder="nama@email.com" value="demo@expense.app">
+
+      <label class="label" style="margin-top: 12px;">Password</label>
+      <input type="password" id="loginPassword" class="input" placeholder="Min. 6 karakter" value="demo123">
+
+      <button class="btn btn-primary" style="margin-top: 16px;" onclick="doLogin()" id="btnLogin">🔐 Login dengan Firebase</button>
+
+      <div style="display: flex; gap: 8px; margin-top: 10px;">
+        <button class="btn btn-outline" style="flex: 1; font-size: 12px; padding: 10px;" onclick="doRegister()">📝 Daftar</button>
+        <button class="btn btn-outline" style="flex: 1; font-size: 12px; padding: 10px;" onclick="enterDemoMode()">🎮 Mode Demo</button>
+      </div>
+
+      <p id="loginStatus" style="text-align: center; margin-top: 12px; font-size: 12px; color: #64748b;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="mainApp" class="page">
+  <!-- Header -->
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px;">
+    <div>
+      <h2 id="greeting" style="font-size: 18px;">Halo 👋</h2>
+      <p id="roleDisplay" style="font-size: 12px; color: #94a3b8;">-</p>
+    </div>
+    <button class="btn btn-outline" style="width: auto; padding: 8px 14px; font-size: 12px;" onclick="doLogout()">Keluar</button>
+  </div>
+
+  <!-- Connection Status -->
+  <div id="connStatus" class="container" style="padding-top: 0; padding-bottom: 8px;">
+    <div class="card" style="padding: 8px 12px; margin-bottom: 0; display: flex; align-items: center; gap: 8px;">
+      <span id="connDot" style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444;"></span>
+      <span id="connText" style="font-size: 11px; color: #94a3b8;">Offline (Mode Demo)</span>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('input')" id="tabInput">📝 Input</button>
+    <button class="tab" onclick="switchTab('riwayat')" id="tabRiwayat">📋 Riwayat</button>
+    <button class="tab" onclick="switchTab('laporan')" id="tabLaporan" style="display:none;">📊 Laporan</button>
+  </div>
+
+  <!-- TAB: INPUT -->
+  <div id="pageInput" class="page active container">
+    <div class="camera-btn" id="cameraBtn">
+      <div class="icon">📷</div>
+      <div class="title">Tap untuk foto struk</div>
+      <div class="sub">Atau upload dari galeri</div>
+      <input type="file" id="fileInput" accept="image/*" capture="environment" onchange="handleFileSelect(event)">
+    </div>
+
+    <!-- Preview -->
+    <div id="previewBox" class="card hidden" style="display: flex; gap: 12px; align-items: center;">
+      <div class="receipt-thumb" id="previewThumb">🧾</div>
+      <div style="flex: 1;">
+        <p style="font-size: 13px; color: #f8fafc;" id="previewName">struk.jpg</p>
+        <p style="font-size: 11px; color: #22c55e;">✅ Siap diupload</p>
+      </div>
+    </div>
+
+    <!-- OCR Progress -->
+    <div id="ocrProgress" class="card hidden" style="margin-bottom: 12px;">
+      <div class="ocr-loading">
+        <div class="spinner"></div>
+        <span style="font-size: 12px; color: #94a3b8;">🔍 Membaca nominal dari struk...</span>
+      </div>
+      <p id="ocrStatus" style="font-size: 11px; color: #64748b; margin-top: 4px;"></p>
+    </div>
+
+    <div class="card">
+      <label class="label">Nominal (Rp)</label>
+      <div style="display: flex; gap: 8px;">
+        <span style="display: flex; align-items: center; padding: 0 14px; background: #334155; border-radius: 10px; font-weight: 600;">Rp</span>
+        <input type="number" id="amountInput" class="input" placeholder="0">
+      </div>
+      <p id="ocrHint" style="font-size: 11px; color: #22c55e; margin-top: 6px; display: none;">💡 Terdeteksi otomatis dari struk</p>
+
+      <label class="label" style="margin-top: 14px;">Kategori</label>
+      <select id="categoryInput" class="input">
+        <option value="Makan & Minum">🍽️ Makan & Minum</option>
+        <option value="Transportasi">🚗 Transportasi</option>
+        <option value="Operasional">📦 Operasional</option>
+        <option value="Pembelian Barang">🛒 Pembelian Barang</option>
+        <option value="Lainnya">📋 Lainnya</option>
+      </select>
+
+      <label class="label" style="margin-top: 14px;">Catatan (opsional)</label>
+      <input type="text" id="noteInput" class="input" placeholder="Makan siang meeting client">
+
+      <button class="btn btn-primary" style="margin-top: 16px;" onclick="submitExpense()" id="btnSubmit">
+        🚀 Kirim Pengeluaran
+      </button>
+    </div>
+  </div>
+
+  <!-- TAB: RIWAYAT -->
+  <div id="pageRiwayat" class="page container">
+    <div id="riwayatList"></div>
+  </div>
+
+  <!-- TAB: LAPORAN (Owner only) -->
+  <div id="pageLaporan" class="page container">
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-label">Pengeluaran Owner</div>
+        <div class="summary-value" id="ownerTotal" style="color: #3b82f6;">Rp 0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Reimburse Karyawan</div>
+        <div class="summary-value" id="reimburseTotal" style="color: #f59e0b;">Rp 0</div>
+      </div>
+    </div>
+    <div class="card" style="text-align: center; margin-bottom: 16px;">
+      <p style="font-size: 12px; color: #94a3b8;">Grand Total Bulan Ini</p>
+      <p id="grandTotal" style="font-size: 28px; font-weight: 700; color: #22c55e; margin-top: 4px;">Rp 0</p>
+    </div>
+
+    <div class="month-selector">
+      <select id="reportMonth" class="input" onchange="updateReport()">
+        <option value="2026-08">Agustus 2026</option>
+        <option value="2026-07">Juli 2026</option>
+        <option value="2026-06">Juni 2026</option>
+      </select>
+      <button class="btn btn-outline" style="width: auto; padding: 12px 16px;" onclick="exportReport()">📥 Export CSV</button>
+    </div>
+
+    <h3 style="font-size: 14px; color: #94a3b8; margin-bottom: 10px;">📝 Daftar Pengeluaran</h3>
+    <div id="reportList"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast">Notifikasi</div>
+
+<script>
+// ==================== GLOBAL STATE ====================
+let currentUser = null;
+let currentRole = 'karyawan';
+let isDemoMode = false;
+let firebaseInitialized = false;
+let selectedFile = null;
+let expenses = [];
+let db = null;
+let storage = null;
+let auth = null;
+
+const categoryIcons = {
+  'Makan & Minum': '🍽️',
+  'Transportasi': '🚗',
+  'Operasional': '📦',
+  'Pembelian Barang': '🛒',
+  'Lainnya': '📋'
+};
+
+// ==================== FIREBASE CONFIG ====================
+function saveFirebaseConfig() {
+  const config = {
+    apiKey: document.getElementById('cfgApiKey').value,
+    authDomain: document.getElementById('cfgAuthDomain').value,
+    projectId: document.getElementById('cfgProjectId').value,
+    storageBucket: document.getElementById('cfgStorageBucket').value,
+    messagingSenderId: document.getElementById('cfgMessagingSenderId').value,
+    appId: document.getElementById('cfgAppId').value
+  };
+
+  if (!config.apiKey || !config.projectId) {
+    showToast('❌ Masukkan apiKey dan projectId');
+    return;
+  }
+
+  localStorage.setItem('firebaseConfig', JSON.stringify(config));
+  showToast('✅ Config Firebase tersimpan!');
+}
+
+function loadFirebaseConfig() {
+  const saved = localStorage.getItem('firebaseConfig');
+  if (saved) {
+    const config = JSON.parse(saved);
+    document.getElementById('cfgApiKey').value = config.apiKey || '';
+    document.getElementById('cfgAuthDomain').value = config.authDomain || '';
+    document.getElementById('cfgProjectId').value = config.projectId || '';
+    document.getElementById('cfgStorageBucket').value = config.storageBucket || '';
+    document.getElementById('cfgMessagingSenderId').value = config.messagingSenderId || '';
+    document.getElementById('cfgAppId').value = config.appId || '';
+  }
+}
+
+function initFirebase() {
+  const saved = localStorage.getItem('firebaseConfig');
+  if (!saved) return false;
+
+  try {
+    const config = JSON.parse(saved);
+    if (!config.apiKey || !config.projectId) return false;
+
+    firebase.initializeApp(config);
+    db = firebase.firestore();
+    storage = firebase.storage();
+    auth = firebase.auth();
+    firebaseInitialized = true;
+
+    // Enable offline persistence
+    db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+
+    return true;
+  } catch (e) {
+    console.error('Firebase init error:', e);
+    return false;
+  }
+}
+
+// ==================== DEMO MODE ====================
+function enterDemoMode() {
+  isDemoMode = true;
+  firebaseInitialized = false;
+
+  // Load demo data
+  const saved = localStorage.getItem('demoExpenses');
+  if (saved) {
+    expenses = JSON.parse(saved);
+  } else {
+    expenses = [
+      { id: 'exp_001', userId: 'budi', userName: 'Budi', amount: 50000, category: 'Makan & Minum', note: 'Makan siang meeting', type: 'reimburse', status: 'pending', month: '2026-08', createdAt: '2026-08-02', photoURL: null },
+      { id: 'exp_002', userId: 'ani', userName: 'Ani', amount: 30000, category: 'Transportasi', note: '', type: 'reimburse', status: 'approved', month: '2026-08', createdAt: '2026-08-01', photoURL: null },
+      { id: 'exp_003', userId: 'budi', userName: 'Budi', amount: 20000, category: 'Operasional', note: 'Beli tinta printer', type: 'reimburse', status: 'rejected', month: '2026-07', createdAt: '2026-07-31', photoURL: null },
+      { id: 'exp_004', userId: 'owner', userName: 'Pak Owner', amount: 1200000, category: 'Operasional', note: 'Sewa kantor', type: 'owner', status: 'approved', month: '2026-08', createdAt: '2026-08-01', photoURL: null },
+      { id: 'exp_005', userId: 'owner', userName: 'Pak Owner', amount: 150000, category: 'Pembelian Barang', note: 'Kertas A4 5 rim', type: 'owner', status: 'approved', month: '2026-08', createdAt: '2026-08-02', photoURL: null }
+    ];
+  }
+
+  currentUser = { name: 'Budi', role: currentRole, id: 'budi', email: 'demo@expense.app' };
+
+  updateConnectionStatus('demo');
+  showMainApp();
+  showToast('🎮 Mode Demo aktif! Data tersimpan di browser.');
+}
+
+function updateConnectionStatus(status) {
+  const dot = document.getElementById('connDot');
+  const text = document.getElementById('connText');
+
+  if (status === 'online') {
+    dot.style.background = '#22c55e';
+    text.textContent = '🟢 Online (Firebase)';
+  } else if (status === 'offline') {
+    dot.style.background = '#f59e0b';
+    text.textContent = '🟡 Offline (cache)';
+  } else {
+    dot.style.background = '#3b82f6';
+    text.textContent = '🎮 Mode Demo (LocalStorage)';
+  }
+}
+
+// ==================== AUTH ====================
+function setRole(role) {
+  currentRole = role;
+  document.getElementById('roleKaryawan').classList.toggle('active', role === 'karyawan');
+  document.getElementById('roleOwner').classList.toggle('active', role === 'owner');
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const statusEl = document.getElementById('loginStatus');
+
+  if (!email || !password) {
+    statusEl.textContent = '❌ Masukkan email dan password';
+    statusEl.style.color = '#ef4444';
+    return;
+  }
+
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true;
+  btn.textContent = '⏳ Memuat...';
+
+  // Try Firebase first
+  if (initFirebase()) {
+    try {
+      const userCred = await auth.signInWithEmailAndPassword(email, password);
+      const userDoc = await db.collection('users').doc(userCred.user.uid).get();
+
+      if (userDoc.exists) {
+        const data = userDoc.data();
+        currentUser = { 
+          id: userCred.user.uid, 
+          name: data.name, 
+          email: data.email, 
+          role: data.role 
+        };
+        currentRole = data.role;
+      } else {
+        // Create user doc if not exists
+        currentUser = { id: userCred.user.uid, name: email.split('@')[0], email, role: currentRole };
+        await db.collection('users').doc(userCred.user.uid).set(currentUser);
+      }
+
+      updateConnectionStatus('online');
+      setupRealtimeListeners();
+      showMainApp();
+      showToast(`✅ Selamat datang, ${currentUser.name}!`);
+      btn.disabled = false;
+      btn.textContent = '🔐 Login dengan Firebase';
+      return;
+    } catch (e) {
+      console.error('Firebase login error:', e);
+      statusEl.textContent = '❌ ' + (e.message || 'Login gagal');
+      statusEl.style.color = '#ef4444';
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔐 Login dengan Firebase';
+}
+
+async function doRegister() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const statusEl = document.getElementById('loginStatus');
+
+  if (!email || password.length < 6) {
+    statusEl.textContent = '❌ Email valid + password min. 6 karakter';
+    statusEl.style.color = '#ef4444';
+    return;
+  }
+
+  if (!initFirebase()) {
+    statusEl.textContent = '❌ Simpan config Firebase dulu!';
+    statusEl.style.color = '#ef4444';
+    return;
+  }
+
+  try {
+    const userCred = await auth.createUserWithEmailAndPassword(email, password);
+    await db.collection('users').doc(userCred.user.uid).set({
+      uid: userCred.user.uid,
+      name: email.split('@')[0],
+      email: email,
+      role: currentRole,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    statusEl.textContent = '✅ Akun berhasil dibuat! Silakan login.';
+    statusEl.style.color = '#22c55e';
+  } catch (e) {
+    statusEl.textContent = '❌ ' + (e.message || 'Registrasi gagal');
+    statusEl.style.color = '#ef4444';
+  }
+}
+
+function showMainApp() {
+  document.getElementById('loginPage').classList.remove('active');
+  document.getElementById('mainApp').classList.add('active');
+  document.getElementById('greeting').textContent = `Halo, ${currentUser.name} ${currentUser.role === 'owner' ? '👔' : '👋'}`;
+  document.getElementById('roleDisplay').textContent = currentUser.role === 'owner' ? 'Owner / Manager' : 'Karyawan';
+  document.getElementById('tabLaporan').style.display = currentUser.role === 'owner' ? 'block' : 'none';
+
+  if (isDemoMode) {
+    renderRiwayat();
+    if (currentUser.role === 'owner') updateReport();
+  }
+}
+
+function doLogout() {
+  currentUser = null;
+  expenses = [];
+  isDemoMode = false;
+
+  if (auth) auth.signOut().catch(() => {});
+
+  document.getElementById('mainApp').classList.remove('active');
+  document.getElementById('loginPage').classList.add('active');
+  switchTab('input');
+
+  // Reset form
+  document.getElementById('amountInput').value = '';
+  document.getElementById('noteInput').value = '';
+  document.getElementById('previewBox').classList.add('hidden');
+  document.getElementById('ocrProgress').classList.add('hidden');
+  selectedFile = null;
+}
+
+// ==================== REALTIME LISTENERS (Firebase) ====================
+function setupRealtimeListeners() {
+  if (!db || isDemoMode) return;
+
+  // Listen to expenses
+  let query = db.collection('expenses').orderBy('createdAt', 'desc');
+
+  if (currentUser.role === 'karyawan') {
+    query = query.where('userId', '==', currentUser.id);
+  }
+
+  query.onSnapshot(snapshot => {
+    expenses = [];
+    snapshot.forEach(doc => {
+      expenses.push({ id: doc.id, ...doc.data() });
+    });
+
+    if (document.getElementById('pageRiwayat').classList.contains('active')) {
+      renderRiwayat();
+    }
+    if (currentUser.role === 'owner' && document.getElementById('pageLaporan').classList.contains('active')) {
+      updateReport();
+    }
+  }, err => {
+    console.error('Snapshot error:', err);
+    updateConnectionStatus('offline');
+  });
+}
+
+// ==================== NAVIGATION ====================
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => {
+    if (p.id !== 'loginPage' && p.id !== 'mainApp') p.classList.remove('active');
+  });
+
+  if (tab === 'input') { 
+    document.getElementById('tabInput').classList.add('active'); 
+    document.getElementById('pageInput').classList.add('active'); 
+  }
+  if (tab === 'riwayat') { 
+    document.getElementById('tabRiwayat').classList.add('active'); 
+    document.getElementById('pageRiwayat').classList.add('active'); 
+    renderRiwayat();
+  }
+  if (tab === 'laporan') { 
+    document.getElementById('tabLaporan').classList.add('active'); 
+    document.getElementById('pageLaporan').classList.add('active'); 
+    updateReport();
+  }
+}
+
+// ==================== CAMERA & OCR ====================
+function handleFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  selectedFile = file;
+
+  // Show preview
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('previewThumb').innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
+    document.getElementById('previewName').textContent = file.name;
+    document.getElementById('previewBox').classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+
+  // Run OCR
+  runOCR(file);
+}
+
+async function runOCR(file) {
+  const progressEl = document.getElementById('ocrProgress');
+  const statusEl = document.getElementById('ocrStatus');
+  const hintEl = document.getElementById('ocrHint');
+
+  progressEl.classList.remove('hidden');
+  statusEl.textContent = 'Memuat model OCR...';
+  hintEl.style.display = 'none';
+
+  try {
+    const result = await Tesseract.recognize(
+      file,
+      'eng+ind',
+      {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            statusEl.textContent = `Membaca... ${Math.round(m.progress * 100)}%`;
+          }
+        }
+      }
+    );
+
+    const text = result.data.text;
+    console.log('OCR Result:', text);
+
+    // Extract numbers (nominal) from text
+    // Look for patterns like: Rp 50.000, 50000, 50,000, etc.
+    const numberPatterns = [
+      /Rp[\s.]*([\d.,]+)/i,
+      /TOTAL[\s:]*([\d.,]+)/i,
+      /([\d]{1,3}(?:[.,][\d]{3})+(?:[.,][\d]{2})?)/,
+      /([\d]+)/g
+    ];
+
+    let detectedAmount = null;
+
+    for (const pattern of numberPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const cleanNum = match[1] || match[0];
+        const num = parseInt(cleanNum.replace(/[.,]/g, ''));
+        if (num > 1000 && num < 100000000) {
+          detectedAmount = num;
+          break;
+        }
+      }
+    }
+
+    if (detectedAmount) {
+      document.getElementById('amountInput').value = detectedAmount;
+      hintEl.textContent = `💡 Terdeteksi: Rp ${formatRupiah(detectedAmount)} dari struk`;
+      hintEl.style.display = 'block';
+      statusEl.textContent = `✅ Nominal terdeteksi: Rp ${formatRupiah(detectedAmount)}`;
+      statusEl.style.color = '#22c55e';
+    } else {
+      statusEl.textContent = '⚠️ Nominal tidak terdeteksi, silakan input manual';
+      statusEl.style.color = '#f59e0b';
+    }
+
+    setTimeout(() => progressEl.classList.add('hidden'), 2000);
+
+  } catch (err) {
+    console.error('OCR error:', err);
+    statusEl.textContent = '❌ OCR gagal, silakan input manual';
+    statusEl.style.color = '#ef4444';
+    setTimeout(() => progressEl.classList.add('hidden'), 2000);
+  }
+}
+
+// ==================== SUBMIT EXPENSE ====================
+async function submitExpense() {
+  const amount = parseInt(document.getElementById('amountInput').value);
+  const category = document.getElementById('categoryInput').value;
+  const note = document.getElementById('noteInput').value;
+
+  if (!amount || amount <= 0) { showToast('❌ Masukkan nominal'); return; }
+
+  const btn = document.getElementById('btnSubmit');
+  btn.disabled = true;
+  btn.textContent = '⏳ Mengirim...';
+
+  const now = new Date();
+  const monthId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const expenseData = {
+    userId: currentUser.id,
+    userName: currentUser.name,
+    amount,
+    category,
+    note,
+    type: currentUser.role,
+    status: currentUser.role === 'owner' ? 'approved' : 'pending',
+    month: monthId,
+    year: now.getFullYear(),
+    createdAt: isDemoMode ? now.toISOString() : firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  try {
+    let photoURL = null;
+
+    // Upload photo if exists
+    if (selectedFile) {
+      if (isDemoMode) {
+        // Demo mode: convert to base64
+        photoURL = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = e => resolve(e.target.result);
+          reader.readAsDataURL(selectedFile);
+        });
+      } else if (storage) {
+        // Firebase: upload to Storage
+        const fileName = `receipts/${currentUser.id}/${Date.now()}_${selectedFile.name}`;
+        const ref = storage.ref(fileName);
+        await ref.put(selectedFile);
+        photoURL = await ref.getDownloadURL();
+      }
+    }
+
+    expenseData.photoURL = photoURL;
+
+    if (isDemoMode) {
+      // Demo mode: save to localStorage
+      expenseData.id = 'exp_' + Date.now();
+      expenses.push(expenseData);
+      localStorage.setItem('demoExpenses', JSON.stringify(expenses));
+
+      // Update monthly summary in demo
+      updateDemoMonthlySummary(monthId);
+    } else if (db) {
+      // Firebase: save to Firestore
+      await db.collection('expenses').add(expenseData);
+    }
+
+    // Reset form
+    document.getElementById('amountInput').value = '';
+    document.getElementById('noteInput').value = '';
+    document.getElementById('previewBox').classList.add('hidden');
+    document.getElementById('ocrProgress').classList.add('hidden');
+    document.getElementById('ocrHint').style.display = 'none';
+    selectedFile = null;
+
+    showToast(currentUser.role === 'owner' ? '✅ Pengeluaran tersimpan!' : '✅ Pengeluaran terkirim! Menunggu approval...');
+
+    setTimeout(() => switchTab('riwayat'), 800);
+
+  } catch (err) {
+    console.error('Submit error:', err);
+    showToast('❌ Gagal menyimpan: ' + err.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🚀 Kirim Pengeluaran';
+}
+
+function updateDemoMonthlySummary(monthId) {
+  const monthExpenses = expenses.filter(e => e.month === monthId && e.status === 'approved');
+  const ownerTotal = monthExpenses.filter(e => e.type === 'owner').reduce((s, e) => s + e.amount, 0);
+  const reimburseTotal = monthExpenses.filter(e => e.type === 'reimburse').reduce((s, e) => s + e.amount, 0);
+
+  const summary = {
+    monthId,
+    year: parseInt(monthId.split('-')[0]),
+    month: parseInt(monthId.split('-')[1]),
+    ownerTotal,
+    reimburseTotal,
+    grandTotal: ownerTotal + reimburseTotal,
+    totalItems: monthExpenses.length,
+    updatedAt: new Date().toISOString()
+  };
+
+  const summaries = JSON.parse(localStorage.getItem('demoSummaries') || '{}');
+  summaries[monthId] = summary;
+  localStorage.setItem('demoSummaries', JSON.stringify(summaries));
+}
+
+// ==================== RIWAYAT ====================
+function renderRiwayat() {
+  const list = document.getElementById('riwayatList');
+  let filtered = [...expenses];
+
+  if (currentUser.role === 'karyawan') {
+    filtered = filtered.filter(e => e.userId === currentUser.id);
+  }
+
+  filtered = filtered.sort((a, b) => {
+    const aDate = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+    const bDate = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+    return bDate - aDate;
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Belum ada pengeluaran</p></div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(exp => {
+    const icon = categoryIcons[exp.category] || '📋';
+    const badgeClass = exp.status === 'pending' ? 'badge-pending' : exp.status === 'approved' ? 'badge-approved' : 'badge-rejected';
+    const statusText = exp.status === 'pending' ? '⏳ Pending' : exp.status === 'approved' ? '✅ Approved' : '❌ Rejected';
+    const dateStr = exp.createdAt?.toDate ? exp.createdAt.toDate().toLocaleDateString('id-ID') : exp.createdAt;
+
+    return `
+      <div class="expense-item">
+        <div class="expense-icon" style="background: ${exp.status === 'pending' ? '#f59e0b30' : exp.status === 'approved' ? '#22c55e30' : '#ef444430'};">${icon}</div>
+        <div class="expense-info">
+          <div class="expense-amount">Rp ${formatRupiah(exp.amount)}</div>
+          <div class="expense-meta">${exp.category} • ${dateStr} ${exp.userName !== currentUser.name ? '• ' + exp.userName : ''}</div>
+        </div>
+        <span class="badge ${badgeClass}">${statusText}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ==================== LAPORAN (OWNER) ====================
+function updateReport() {
+  if (currentUser.role !== 'owner') return;
+
+  const month = document.getElementById('reportMonth').value;
+
+  let monthExpenses, summary;
+
+  if (isDemoMode) {
+    monthExpenses = expenses.filter(e => e.month === month);
+    const summaries = JSON.parse(localStorage.getItem('demoSummaries') || '{}');
+    summary = summaries[month] || { ownerTotal: 0, reimburseTotal: 0, grandTotal: 0 };
+  } else {
+    monthExpenses = expenses.filter(e => e.month === month);
+    const ownerTotal = monthExpenses.filter(e => e.type === 'owner' && e.status === 'approved').reduce((s, e) => s + e.amount, 0);
+    const reimburseTotal = monthExpenses.filter(e => e.type === 'reimburse' && e.status === 'approved').reduce((s, e) => s + e.amount, 0);
+    summary = { ownerTotal, reimburseTotal, grandTotal: ownerTotal + reimburseTotal };
+  }
+
+  document.getElementById('ownerTotal').textContent = 'Rp ' + formatRupiah(summary.ownerTotal || 0);
+  document.getElementById('reimburseTotal').textContent = 'Rp ' + formatRupiah(summary.reimburseTotal || 0);
+  document.getElementById('grandTotal').textContent = 'Rp ' + formatRupiah(summary.grandTotal || 0);
+
+  // Render list
+  const list = document.getElementById('reportList');
+  const allMonth = monthExpenses.sort((a, b) => {
+    const aDate = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+    const bDate = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+    return bDate - aDate;
+  });
+
+  if (allMonth.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Tidak ada data bulan ini</p></div>';
+    return;
+  }
+
+  list.innerHTML = allMonth.map(exp => {
+    const icon = categoryIcons[exp.category] || '📋';
+    const borderColor = exp.status === 'pending' ? '#f59e0b' : exp.status === 'approved' ? '#22c55e' : '#ef4444';
+    const badgeClass = exp.status === 'pending' ? 'badge-pending' : exp.status === 'approved' ? 'badge-approved' : 'badge-rejected';
+    const statusText = exp.status === 'pending' ? '⏳ Pending' : exp.status === 'approved' ? '✅ Approved' : '❌ Rejected';
+    const dateStr = exp.createdAt?.toDate ? exp.createdAt.toDate().toLocaleDateString('id-ID') : exp.createdAt;
+
+    const approvalBtns = exp.status === 'pending' && exp.type === 'reimburse' ? `
+      <div class="approval-btns">
+        <button class="btn btn-success" onclick="approveExpense('${exp.id}')">✓ Approve</button>
+        <button class="btn btn-danger" onclick="rejectExpense('${exp.id}')">✗ Reject</button>
+      </div>
+    ` : '';
+
+    const photoPreview = exp.photoURL ? `<div class="receipt-thumb" onclick="window.open('${exp.photoURL}', '_blank')"><img src="${exp.photoURL}"></div>` : '<div class="receipt-thumb">🧾</div>';
+
+    return `
+      <div class="card" style="border-left: 3px solid ${borderColor}; margin-bottom: 10px;">
+        <div style="display: flex; gap: 12px; align-items: flex-start;">
+          ${photoPreview}
+          <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <p style="font-weight: 600; color: #f8fafc;">Rp ${formatRupiah(exp.amount)}</p>
+                <p style="font-size: 11px; color: #94a3b8;">${icon} ${exp.category} • ${exp.userName}</p>
+                <p style="font-size: 11px; color: #64748b;">${dateStr} ${exp.note ? '• ' + exp.note : ''}</p>
+              </div>
+              <span class="badge ${badgeClass}" style="font-size: 10px;">${statusText}</span>
+            </div>
+            ${approvalBtns}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function approveExpense(id) {
+  try {
+    if (isDemoMode) {
+      const exp = expenses.find(e => e.id === id);
+      if (exp) { exp.status = 'approved'; exp.approvedBy = currentUser.id; }
+      localStorage.setItem('demoExpenses', JSON.stringify(expenses));
+      updateDemoMonthlySummary(exp.month);
+    } else if (db) {
+      await db.collection('expenses').doc(id).update({ status: 'approved', approvedBy: currentUser.id });
+    }
+    showToast('✅ Pengeluaran di-approve');
+    updateReport();
+  } catch (err) {
+    showToast('❌ Gagal: ' + err.message);
+  }
+}
+
+async function rejectExpense(id) {
+  try {
+    if (isDemoMode) {
+      const exp = expenses.find(e => e.id === id);
+      if (exp) { exp.status = 'rejected'; }
+      localStorage.setItem('demoExpenses', JSON.stringify(expenses));
+    } else if (db) {
+      await db.collection('expenses').doc(id).update({ status: 'rejected' });
+    }
+    showToast('❌ Pengeluaran di-reject');
+    updateReport();
+  } catch (err) {
+    showToast('❌ Gagal: ' + err.message);
+  }
+}
+
+function exportReport() {
+  const month = document.getElementById('reportMonth').value;
+  const monthExpenses = expenses.filter(e => e.month === month);
+
+  let csv = 'Tanggal,Nama,Kategori,Nominal,Tipe,Status\n';
+  monthExpenses.forEach(e => {
+    const dateStr = e.createdAt?.toDate ? e.createdAt.toDate().toLocaleDateString('id-ID') : e.createdAt;
+    csv += `${dateStr},${e.userName},${e.category},${e.amount},${e.type},${e.status}\n`;
+  });
+
+  const blob = new Blob([\ufeff + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `laporan_pengeluaran_${month}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📥 Laporan CSV di-download!');
+}
+
+// ==================== UTILS ====================
+function formatRupiah(num) {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ==================== INIT ====================
+window.addEventListener('DOMContentLoaded', () => {
+  loadFirebaseConfig();
+});
+</script>
+</body>
+</html>

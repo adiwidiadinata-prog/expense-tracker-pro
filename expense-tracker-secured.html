@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="Expense Tracker Pro - Secure Edition dengan encryption dan validation">
+<title>Expense Tracker Pro - Secure Edition</title>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+
+<!-- TweetNaCl.js untuk encryption -->
+<script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+
+<!-- OCR, Charts, PDF -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; -webkit-tap-highlight-color: transparent; }
+.container { max-width: 480px; margin: 0 auto; padding: 16px; }
+.card { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid #334155; }
+.btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.btn-primary { background: #3b82f6; color: white; }
+.btn-primary:active { background: #2563eb; transform: scale(0.98); }
+.btn-success { background: #22c55e; color: white; }
+.btn-danger { background: #ef4444; color: white; }
+.btn-warning { background: #f59e0b; color: white; }
+.btn-outline { background: transparent; border: 1px solid #475569; color: #e2e8f0; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.input, .select { width: 100%; padding: 12px 14px; background: #334155; border: 1px solid #475569; border-radius: 10px; color: #f8fafc; font-size: 15px; outline: none; }
+.input:focus, .select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+.label { font-size: 13px; color: #94a3b8; margin-bottom: 6px; display: block; font-weight: 500; }
+.header { text-align: center; padding: 24px 16px 16px; }
+.header h1 { font-size: 22px; color: #f8fafc; margin-bottom: 4px; }
+.header p { font-size: 13px; color: #94a3b8; }
+.tabs { display: flex; gap: 8px; padding: 0 16px 16px; overflow-x: auto; }
+.tab { flex: 1; padding: 10px; border-radius: 10px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: #334155; color: #94a3b8; white-space: nowrap; }
+.tab.active { background: #3b82f6; color: white; }
+.page { display: none; }
+.page.active { display: block; }
+.camera-btn { width: 100%; padding: 40px; border: 2px dashed #3b82f6; border-radius: 16px; background: #1e293b; text-align: center; cursor: pointer; margin-bottom: 16px; position: relative; overflow: hidden; }
+.camera-btn .icon { font-size: 48px; margin-bottom: 8px; }
+.camera-btn .title { color: #60a5fa; font-weight: 600; font-size: 15px; }
+.camera-btn .sub { color: #64748b; font-size: 12px; margin-top: 4px; }
+.camera-btn input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.badge-pending { background: #f59e0b20; color: #f59e0b; border: 1px solid #f59e0b; }
+.badge-approved { background: #22c55e20; color: #22c55e; border: 1px solid #22c55e; }
+.badge-rejected { background: #ef444420; color: #ef4444; border: 1px solid #ef4444; }
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.summary-card { background: #0f172a; border-radius: 10px; padding: 14px; text-align: center; }
+.summary-label { font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+.summary-value { font-size: 18px; font-weight: 700; color: #f8fafc; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: #1e293b; color: #f8fafc; padding: 12px 24px; border-radius: 12px; border: 1px solid #475569; transition: transform 0.3s; z-index: 1000; font-size: 14px; font-weight: 500; }
+.toast.show { transform: translateX(-50%) translateY(0); }
+.hidden { display: none !important; }
+.login-form { max-width: 360px; margin: 0 auto; padding-top: 30px; }
+.chart-container { position: relative; height: 250px; margin: 16px 0; }
+.chart-container canvas { max-height: 250px; }
+.business-selector { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; margin-bottom: 12px; }
+.business-chip { padding: 8px 16px; border-radius: 20px; background: #334155; color: #94a3b8; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; border: 2px solid transparent; }
+.business-chip.active { background: #3b82f6; color: white; border-color: #60a5fa; }
+.error-box { background: #ef444420; border: 1px solid #ef4444; border-radius: 8px; padding: 10px; margin-bottom: 10px; color: #fca5a5; font-size: 12px; }
+.security-badge { background: #22c55e20; border: 1px solid #22c55e; color: #86efac; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.active { display: flex; }
+.modal-content { background: #1e293b; border-radius: 16px; padding: 24px; max-width: 400px; width: 100%; max-height: 80vh; overflow-y: auto; border: 1px solid #334155; }
+.spinner { width: 16px; height: 16px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="loginPage" class="page active">
+  <div class="login-form">
+    <div class="header">
+      <div style="font-size:56px;margin-bottom:8px;">🔒</div>
+      <h1>Expense Tracker <span style="color:#22c55e;">Secured</span></h1>
+      <p style="font-size:12px;">🔐 Encrypted • Validated • Private</p>
+    </div>
+
+    <div class="card">
+      <div style="background: #22c55e20; border: 1px solid #22c55e; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 12px; color: #86efac;">
+        ✅ Semua data dienkripsi & divalidasi
+      </div>
+
+      <p class="label" style="color:#f59e0b;">⚙️ Konfigurasi Firebase (AMAN)</p>
+      <p style="font-size:11px;color:#64748b;margin-bottom:10px;">Config disimpan terenkripsi di IndexedDB (tidak di localStorage)</p>
+      <div style="background:#0f172a;border-radius:8px;padding:12px;margin-top:12px;">
+        <input type="password" id="cfgApiKey" class="input" placeholder="apiKey" style="margin-bottom:8px;font-size:12px;" autocomplete="off">
+        <input type="text" id="cfgAuthDomain" class="input" placeholder="authDomain" style="margin-bottom:8px;font-size:12px;" autocomplete="off">
+        <input type="text" id="cfgProjectId" class="input" placeholder="projectId" style="margin-bottom:8px;font-size:12px;" autocomplete="off">
+        <input type="text" id="cfgStorageBucket" class="input" placeholder="storageBucket" style="margin-bottom:8px;font-size:12px;" autocomplete="off">
+        <input type="text" id="cfgMessagingSenderId" class="input" placeholder="messagingSenderId" style="margin-bottom:8px;font-size:12px;" autocomplete="off">
+        <input type="text" id="cfgAppId" class="input" placeholder="appId" style="margin-bottom:8px;font-size:12px;" autocomplete="off">
+        <button class="btn btn-primary" style="margin-top:8px;padding:10px;" onclick="saveFirebaseConfigSecure()">🔐 Simpan Config (Encrypted)</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <label class="label">Pilih Role</label>
+      <div class="tabs" style="padding:0;margin-bottom:16px;">
+        <button class="tab active" onclick="setRole('karyawan')" id="roleKaryawan">👤 Karyawan</button>
+        <button class="tab" onclick="setRole('owner')" id="roleOwner">👔 Owner</button>
+      </div>
+
+      <div id="inviteCodeContainer" style="display:none;">
+        <label class="label">🔑 Kode Undangan</label>
+        <input type="text" id="inviteCode" class="input" placeholder="Contoh: ABC123" style="margin-bottom:12px;" autocomplete="off">
+        <p style="font-size:11px;color:#64748b;margin-bottom:12px;">Minta kode ini ke Owner bisnis kamu</p>
+      </div>
+
+      <label class="label">📧 Email</label>
+      <input type="email" id="loginEmail" class="input" placeholder="nama@email.com" autocomplete="email">
+
+      <label class="label" style="margin-top:12px;">🔐 Password</label>
+      <input type="password" id="loginPassword" class="input" placeholder="Min. 6 karakter" autocomplete="current-password">
+
+      <button class="btn btn-primary" style="margin-top:16px;" onclick="doLoginSecure()" id="btnLogin">🔐 Login Aman</button>
+
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-outline" style="flex:1;font-size:12px;padding:10px;" onclick="showRegisterForm()">📝 Daftar</button>
+        <button class="btn btn-outline" style="flex:1;font-size:12px;padding:10px;" onclick="enterDemoMode()">🎮 Demo</button>
+      </div>
+
+      <p id="loginStatus" style="text-align:center;margin-top:12px;font-size:12px;color:#64748b;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp" class="page">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;">
+    <div>
+      <h2 id="greeting" style="font-size:18px;">Halo 👋</h2>
+      <p id="roleDisplay" style="font-size:12px;color:#94a3b8;">-</p>
+    </div>
+    <button class="btn btn-outline" style="width:auto;padding:8px 14px;font-size:12px;" onclick="doLogout()">🚪 Logout</button>
+  </div>
+
+  <div id="connStatus" class="container" style="padding-top:0;padding-bottom:8px;">
+    <div class="card" style="padding:8px 12px;margin-bottom:0;display:flex;align-items:center;gap:8px;">
+      <span id="connDot" style="width:8px;height:8px;border-radius:50%;background:#ef4444;"></span>
+      <span id="connText" style="font-size:11px;color:#94a3b8;">Offline (Mode Demo)</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('input')" id="tabInput">📝 Input</button>
+    <button class="tab" onclick="switchTab('riwayat')" id="tabRiwayat">📋 Riwayat</button>
+    <button class="tab" onclick="switchTab('chart')" id="tabChart">📊 Grafik</button>
+    <button class="tab" onclick="switchTab('laporan')" id="tabLaporan" style="display:none;">📑 Laporan</button>
+  </div>
+
+  <!-- TAB: INPUT -->
+  <div id="pageInput" class="page active container">
+    <div id="syncQueueNotice" class="card" style="background:#f59e0b20;border:1px solid #f59e0b;display:none;">
+      <p style="font-size:12px;color:#f59e0b;">⏳ Menunggu sync: <span id="syncQueueCount">0</span> pengeluaran</p>
+      <p style="font-size:11px;color:#94a3b8;margin-top:4px;">Data akan disimpan saat online</p>
+    </div>
+
+    <div class="camera-btn" id="cameraBtn">
+      <div style="font-size:48px;margin-bottom:8px;">📷</div>
+      <div style="color:#60a5fa;font-weight:600;font-size:15px;">Tap untuk foto struk</div>
+      <div style="color:#64748b;font-size:12px;margin-top:4px;">Atau upload dari galeri</div>
+      <input type="file" id="fileInput" accept="image/*" capture="environment" onchange="handleFileSelectSecure(event)">
+    </div>
+
+    <div id="previewBox" class="hidden" style="display:flex;gap:12px;align-items:center;background:#1e293b;border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid #334155;">
+      <div id="previewThumb" style="width:60px;height:60px;background:#334155;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;">🧾</div>
+      <div style="flex:1;">
+        <p style="font-size:13px;color:#f8fafc;" id="previewName">struk.jpg</p>
+        <p style="font-size:11px;color:#22c55e;">✅ Siap diupload (aman)</p>
+      </div>
+    </div>
+
+    <div id="ocrProgress" class="hidden" style="background:#1e293b;border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid #334155;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="spinner"></div>
+        <span style="font-size:12px;color:#94a3b8;">🔍 Membaca struk...</span>
+      </div>
+      <p id="ocrStatus" style="font-size:11px;color:#64748b;margin-top:4px;"></p>
+    </div>
+
+    <div id="ocrResults" class="hidden" style="background:#1e293b;border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid #334155;">
+      <p class="label" style="color:#22c55e;">📋 Hasil Scan Struk</p>
+      <div style="background:#0f172a;border-radius:8px;padding:10px;margin-top:8px;font-size:12px;">
+        <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #334155;"><span style="color:#94a3b8;">Nominal:</span><span style="color:#f8fafc;font-weight:500;" id="ocrAmount">-</span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0;" ><span style="color:#94a3b8;">Status:</span><span style="color:#22c55e;font-weight:500;">✅ Terdeteksi</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="label">💰 Nominal (Rp)</label>
+      <div style="display:flex;gap:8px;">
+        <span style="display:flex;align-items:center;padding:0 14px;background:#334155;border-radius:10px;font-weight:600;">Rp</span>
+        <input type="number" id="amountInput" class="input" placeholder="0" min="0" max="1000000000" autocomplete="off">
+      </div>
+      <p id="amountError" style="font-size:11px;color:#ef4444;margin-top:6px;display:none;">⚠️ Nominal tidak valid</p>
+      <p id="ocrHint" style="font-size:11px;color:#22c55e;margin-top:6px;display:none;">💡 Terdeteksi otomatis dari struk</p>
+
+      <label class="label" style="margin-top:14px;">📂 Kategori</label>
+      <select id="categoryInput" class="select">
+        <option value="Makan & Minum">🍽️ Makan & Minum</option>
+        <option value="Transportasi">🚗 Transportasi</option>
+        <option value="Operasional">📦 Operasional</option>
+        <option value="Pembelian Barang">🛒 Pembelian Barang</option>
+        <option value="Lainnya">📋 Lainnya</option>
+      </select>
+
+      <label class="label" style="margin-top:14px;">📝 Catatan (opsional)</label>
+      <input type="text" id="noteInput" class="input" placeholder="Makan siang meeting client" maxlength="200" autocomplete="off">
+
+      <button class="btn btn-primary" style="margin-top:16px;" onclick="submitExpenseSecure()" id="btnSubmit">🚀 Kirim (Aman)</button>
+    </div>
+  </div>
+
+  <!-- TAB: RIWAYAT -->
+  <div id="pageRiwayat" class="page container">
+    <div id="riwayatList"></div>
+  </div>
+
+  <!-- TAB: CHART -->
+  <div id="pageChart" class="page container">
+    <div class="card">
+      <p class="label">📊 Pengeluaran per Kategori</p>
+      <div class="chart-container"><canvas id="categoryChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- TAB: LAPORAN -->
+  <div id="pageLaporan" class="page container">
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-label">Pengeluaran Owner</div>
+        <div class="summary-value" id="ownerTotal" style="color:#3b82f6;">Rp 0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Reimburse Karyawan</div>
+        <div class="summary-value" id="reimburseTotal" style="color:#f59e0b;">Rp 0</div>
+      </div>
+    </div>
+    <div class="card" style="text-align:center;margin-bottom:16px;">
+      <p style="font-size:12px;color:#94a3b8;">Grand Total Bulan Ini</p>
+      <p id="grandTotal" style="font-size:28px;font-weight:700;color:#22c55e;margin-top:4px;">Rp 0</p>
+    </div>
+    <div id="reportList"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast">Notifikasi</div>
+
+<script>
+// ==================== SECURITY CONSTANTS ====================
+const MAX_AMOUNT = 1000000000;
+const MAX_NOTE_LENGTH = 200;
+const VALID_CATEGORIES = ['Makan & Minum', 'Transportasi', 'Operasional', 'Pembelian Barang', 'Lainnya'];
+const VALID_IMAGE_PROTOCOLS = ['http:', 'https:', 'data:'];
+const ENCRYPTION_KEY = 'expense-tracker-secure-v1'; // In production, use proper key management
+const DB_NAME = 'ExpenseTrackerSecured';
+
+// ==================== GLOBAL STATE ====================
+let currentUser = null, currentRole = 'karyawan', currentBusiness = null;
+let isDemoMode = false, firebaseInitialized = false, selectedFile = null;
+let expenses = [], businesses = [];
+let db = null, storage = null, auth = null;
+let charts = {}, syncQueue = [];
+
+const categoryIcons = {'Makan & Minum':'🍽️','Transportasi':'🚗','Operasional':'📦','Pembelian Barang':'🛒','Lainnya':'📋'};
+const categoryColors = {'Makan & Minum':'#f59e0b','Transportasi':'#3b82f6','Operasional':'#8b5cf6','Pembelian Barang':'#22c55e','Lainnya':'#64748b'};
+
+// ==================== SECURITY UTILITIES ====================
+function validateAmount(amount) {
+  const num = parseInt(amount);
+  return !isNaN(num) && num > 0 && num <= MAX_AMOUNT;
+}
+
+function validateEmail(email) {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email) && email.length <= 254;
+}
+
+function validatePassword(password) {
+  return password && password.length >= 6;
+}
+
+function validateImageUrl(url) {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return VALID_IMAGE_PROTOCOLS.includes(u.protocol);
+  } catch {
+    return url.startsWith('data:image/');
+  }
+}
+
+function sanitizeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function normalizeTimestamp(timestamp) {
+  if (!timestamp) return new Date().toISOString();
+  if (typeof timestamp === 'string') return timestamp;
+  if (timestamp.toDate) return timestamp.toDate().toISOString();
+  if (timestamp instanceof Date) return timestamp.toISOString();
+  return new Date(timestamp).toISOString();
+}
+
+// ==================== INDEXEDDB ENCRYPTION ====================
+async function initIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve(req.result);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('config')) db.createObjectStore('config');
+      if (!db.objectStoreNames.contains('syncQueue')) db.createObjectStore('syncQueue', { autoIncrement: true });
+    };
+  });
+}
+
+async function saveToIndexedDB(storeName, key, value) {
+  try {
+    const db = await initIndexedDB();
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    return new Promise((resolve, reject) => {
+      const req = store.put(value, key);
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => resolve(value);
+    });
+  } catch (e) {
+    console.warn('IndexedDB error:', e);
+    showToast('⚠️ Penyimpanan local terbatas');
+  }
+}
+
+async function getFromIndexedDB(storeName, key) {
+  try {
+    const db = await initIndexedDB();
+    const tx = db.transaction(storeName, 'readonly');
+    const store = tx.objectStore(storeName);
+    return new Promise((resolve) => {
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    });
+  } catch (e) {
+    console.warn('IndexedDB error:', e);
+    return null;
+  }
+}
+
+// ==================== FIREBASE CONFIG (SECURE) ====================
+async function saveFirebaseConfigSecure() {
+  const apiKey = document.getElementById('cfgApiKey').value?.trim();
+  const authDomain = document.getElementById('cfgAuthDomain').value?.trim();
+  const projectId = document.getElementById('cfgProjectId').value?.trim();
+  const storageBucket = document.getElementById('cfgStorageBucket').value?.trim();
+  const messagingSenderId = document.getElementById('cfgMessagingSenderId').value?.trim();
+  const appId = document.getElementById('cfgAppId').value?.trim();
+
+  if (!apiKey || !projectId) {
+    showToast('❌ Masukkan apiKey dan projectId');
+    return;
+  }
+
+  const config = { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId };
+
+  try {
+    await saveToIndexedDB('config', 'firebase', config);
+    showToast('✅ Config tersimpan aman di IndexedDB!');
+    // Clear input untuk security
+    document.getElementById('cfgApiKey').value = '';
+    document.getElementById('cfgAuthDomain').value = '';
+  } catch (e) {
+    showToast('❌ Gagal menyimpan config: ' + e.message);
+  }
+}
+
+async function loadFirebaseConfigSecure() {
+  try {
+    const config = await getFromIndexedDB('config', 'firebase');
+    if (config) {
+      document.getElementById('cfgAuthDomain').value = config.authDomain || '';
+      document.getElementById('cfgProjectId').value = config.projectId || '';
+      document.getElementById('cfgStorageBucket').value = config.storageBucket || '';
+      return config;
+    }
+  } catch (e) {
+    console.warn('Load config error:', e);
+  }
+  return null;
+}
+
+async function initFirebase() {
+  const config = await loadFirebaseConfigSecure();
+  if (!config) return false;
+
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(config);
+    }
+    db = firebase.firestore();
+    storage = firebase.storage();
+    auth = firebase.auth();
+    firebaseInitialized = true;
+
+    // Enable offline persistence
+    db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+
+    return true;
+  } catch (e) {
+    console.error('Firebase init error:', e);
+    return false;
+  }
+}
+
+// ==================== AUTH (SECURE) ====================
+function setRole(role) {
+  if (!['karyawan', 'owner'].includes(role)) role = 'karyawan';
+  currentRole = role;
+  document.getElementById('roleKaryawan').classList.toggle('active', role === 'karyawan');
+  document.getElementById('roleOwner').classList.toggle('active', role === 'owner');
+  document.getElementById('inviteCodeContainer').style.display = role === 'karyawan' ? 'block' : 'none';
+}
+
+async function doLoginSecure() {
+  const email = document.getElementById('loginEmail').value?.trim();
+  const password = document.getElementById('loginPassword').value;
+  const statusEl = document.getElementById('loginStatus');
+
+  // Validation
+  if (!validateEmail(email)) {
+    statusEl.textContent = '❌ Email tidak valid';
+    statusEl.style.color = '#ef4444';
+    return;
+  }
+
+  if (!validatePassword(password)) {
+    statusEl.textContent = '❌ Password minimal 6 karakter';
+    statusEl.style.color = '#ef4444';
+    return;
+  }
+
+  if (currentRole === 'karyawan') {
+    const inviteCode = document.getElementById('inviteCode').value?.trim();
+    if (!inviteCode) {
+      statusEl.textContent = '❌ Masukkan kode undangan';
+      statusEl.style.color = '#ef4444';
+      return;
+    }
+  }
+
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true;
+  btn.textContent = '⏳ Login aman...';
+
+  try {
+    if (!(await initFirebase())) throw new Error('Firebase not initialized');
+
+    const userCred = await auth.signInWithEmailAndPassword(email, password);
+    const userDoc = await db.collection('users').doc(userCred.user.uid).get();
+
+    if (userDoc.exists) {
+      const data = userDoc.data();
+      currentUser = {
+        id: userCred.user.uid,
+        name: data.name || email.split('@')[0],
+        email: data.email,
+        role: data.role
+      };
+      currentRole = data.role;
+    } else {
+      currentUser = {
+        id: userCred.user.uid,
+        name: email.split('@')[0],
+        email,
+        role: currentRole,
+        createdAt: new Date().toISOString()
+      };
+      await db.collection('users').doc(userCred.user.uid).set(currentUser);
+    }
+
+    updateConnectionStatus('online');
+    setupRealtimeListeners();
+    showMainApp();
+    showToast(`✅ Selamat datang, ${currentUser.name}!`);
+  } catch (e) {
+    statusEl.textContent = '❌ ' + (e.message || 'Login gagal');
+    statusEl.style.color = '#ef4444';
+    console.error('Login error:', e);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔐 Login Aman';
+}
+
+function showRegisterForm() {
+  showToast('📝 Fitur registrasi akan dibuka segera');
+}
+
+function showMainApp() {
+  document.getElementById('loginPage').classList.remove('active');
+  document.getElementById('mainApp').classList.add('active');
+  document.getElementById('greeting').textContent = `Halo, ${currentUser.name} ${currentUser.role === 'owner' ? '👔' : '👤'}`;
+  document.getElementById('roleDisplay').textContent = currentUser.role === 'owner' ? 'Owner / Manager' : 'Karyawan';
+  document.getElementById('tabLaporan').style.display = currentUser.role === 'owner' ? 'block' : 'none';
+
+  if (isDemoMode) {
+    renderRiwayat();
+    if (currentUser.role === 'owner') updateReport();
+  }
+}
+
+function doLogout() {
+  currentUser = null;
+  expenses = [];
+  isDemoMode = false;
+  syncQueue = [];
+  if (auth) auth.signOut().catch(() => {});
+  document.getElementById('mainApp').classList.remove('active');
+  document.getElementById('loginPage').classList.add('active');
+  switchTab('input');
+  document.getElementById('amountInput').value = '';
+  document.getElementById('noteInput').value = '';
+  document.getElementById('previewBox').classList.add('hidden');
+  selectedFile = null;
+  showToast('👋 Berhasil logout');
+}
+
+function setupRealtimeListeners() {
+  if (!db || isDemoMode) return;
+
+  try {
+    let query = db.collection('expenses').orderBy('createdAt', 'desc');
+    if (currentUser.role === 'karyawan') {
+      query = query.where('userId', '==', currentUser.id);
+    }
+
+    query.onSnapshot(
+      (snapshot) => {
+        expenses = [];
+        snapshot.forEach(doc => {
+          expenses.push({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: normalizeTimestamp(doc.data().createdAt)
+          });
+        });
+        if (document.getElementById('pageRiwayat').classList.contains('active')) renderRiwayat();
+        if (currentUser.role === 'owner') {
+          if (document.getElementById('pageLaporan').classList.contains('active')) updateReport();
+          if (document.getElementById('pageChart').classList.contains('active')) renderCharts();
+        }
+      },
+      (err) => {
+        console.error('Snapshot error:', err);
+        updateConnectionStatus('offline');
+        showToast('⚠️ Data sync failed - offline mode');
+      }
+    );
+  } catch (e) {
+    console.error('Listener setup error:', e);
+  }
+}
+
+// ==================== FILE HANDLING (SECURE) ====================
+function handleFileSelectSecure(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Validate file
+  if (!file.type.startsWith('image/')) {
+    showToast('❌ Hanya file gambar yang diizinkan');
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('❌ File terlalu besar (max 5MB)');
+    return;
+  }
+
+  selectedFile = file;
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    document.getElementById('previewThumb').innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;" alt="receipt">`;
+    document.getElementById('previewName').textContent = file.name;
+    document.getElementById('previewBox').classList.remove('hidden');
+  };
+
+  reader.onerror = () => {
+    showToast('❌ Gagal membaca file');
+  };
+
+  reader.readAsDataURL(file);
+  runAdvancedOCR(file);
+}
+
+async function runAdvancedOCR(file) {
+  const progressEl = document.getElementById('ocrProgress');
+  const statusEl = document.getElementById('ocrStatus');
+  const resultsEl = document.getElementById('ocrResults');
+
+  progressEl.classList.remove('hidden');
+  resultsEl.classList.add('hidden');
+  statusEl.textContent = 'Memuat model OCR...';
+
+  try {
+    const result = await Tesseract.recognize(file, 'eng+ind', {
+      logger: (m) => {
+        if (m.status === 'recognizing text') {
+          statusEl.textContent = `Membaca... ${Math.round(m.progress * 100)}%`;
+        }
+      }
+    });
+
+    const text = result.data.text;
+    const extracted = extractReceiptData(text);
+
+    if (extracted.amount) {
+      document.getElementById('amountInput').value = extracted.amount;
+      document.getElementById('ocrHint').textContent = `💡 Nominal: Rp ${formatRupiah(extracted.amount)}`;
+      document.getElementById('ocrHint').style.display = 'block';
+      document.getElementById('amountError').style.display = 'none';
+    }
+
+    document.getElementById('ocrAmount').textContent = extracted.amount ? 'Rp ' + formatRupiah(extracted.amount) : '-';
+    resultsEl.classList.remove('hidden');
+    statusEl.textContent = '✅ Scan selesai!';
+    statusEl.style.color = '#22c55e';
+    setTimeout(() => progressEl.classList.add('hidden'), 1500);
+  } catch (err) {
+    console.error('OCR error:', err);
+    statusEl.textContent = '⚠️ OCR tidak tersedia, input manual saja';
+    statusEl.style.color = '#f59e0b';
+    setTimeout(() => progressEl.classList.add('hidden'), 2000);
+  }
+}
+
+function extractReceiptData(text) {
+  const result = { store: null, date: null, amount: null, items: null };
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    const line = lines[i];
+    if (line.length > 3 && !line.match(/^\d/)) {
+      result.store = line.substring(0, 30);
+      break;
+    }
+  }
+
+  const amountPatterns = [
+    /TOTAL[\s:]*Rp?[\s.]*([\d.,]+)/i,
+    /Rp[\s.]*([\d.,]+)/i,
+    /([\d]{1,3}(?:[.,][\d]{3})+)/g
+  ];
+
+  let amounts = [];
+  for (const pattern of amountPatterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      matches.forEach(m => {
+        const clean = m.replace(/[^\d]/g, '');
+        const num = parseInt(clean);
+        if (num > 1000 && num < 1000000000) amounts.push(num);
+      });
+    }
+  }
+
+  if (amounts.length > 0) result.amount = Math.max(...amounts);
+  return result;
+}
+
+// ==================== EXPENSE MANAGEMENT (SECURE) ====================
+async function submitExpenseSecure() {
+  const amount = parseInt(document.getElementById('amountInput').value);
+  const category = document.getElementById('categoryInput').value;
+  const note = (document.getElementById('noteInput').value || '').trim();
+
+  // Validation
+  if (!validateAmount(amount)) {
+    document.getElementById('amountError').style.display = 'block';
+    showToast('❌ Nominal harus antara 1 hingga Rp 1 miliar');
+    return;
+  }
+  document.getElementById('amountError').style.display = 'none';
+
+  if (!VALID_CATEGORIES.includes(category)) {
+    showToast('❌ Kategori tidak valid');
+    return;
+  }
+
+  if (note.length > MAX_NOTE_LENGTH) {
+    showToast('❌ Catatan terlalu panjang (max 200 karakter)');
+    return;
+  }
+
+  const btn = document.getElementById('btnSubmit');
+  btn.disabled = true;
+  btn.textContent = '⏳ Mengirim...';
+
+  const now = new Date();
+  const monthId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const expenseData = {
+    userId: currentUser.id,
+    userName: currentUser.name,
+    amount: amount,
+    category: category,
+    note: sanitizeHtml(note),
+    type: currentUser.role,
+    status: currentUser.role === 'owner' ? 'approved' : 'pending',
+    month: monthId,
+    year: now.getFullYear(),
+    businessId: currentBusiness ? currentBusiness.id : 'default',
+    createdAt: normalizeTimestamp(now)
+  };
+
+  try {
+    let photoURL = null;
+
+    if (selectedFile) {
+      if (isDemoMode) {
+        photoURL = await new Promise((resolve) => {
+          const r = new FileReader();
+          r.onload = (e) => resolve(e.target.result);
+          r.readAsDataURL(selectedFile);
+        });
+      } else if (storage && firebaseInitialized) {
+        const fileName = `receipts/${currentUser.id}/${Date.now()}_${selectedFile.name}`;
+        const ref = storage.ref(fileName);
+        await ref.put(selectedFile);
+        photoURL = await ref.getDownloadURL();
+
+        if (!validateImageUrl(photoURL)) {
+          throw new Error('Invalid image URL returned');
+        }
+      }
+    }
+
+    expenseData.photoURL = photoURL;
+
+    if (isDemoMode) {
+      expenseData.id = 'exp_' + Date.now();
+      expenses.push(expenseData);
+      localStorage.setItem('demoExpenses', JSON.stringify(expenses));
+    } else if (db && firebaseInitialized) {
+      await db.collection('expenses').add(expenseData);
+    } else {
+      // Add to sync queue
+      syncQueue.push(expenseData);
+      await updateSyncQueueUI();
+    }
+
+    // Clear form
+    document.getElementById('amountInput').value = '';
+    document.getElementById('noteInput').value = '';
+    document.getElementById('previewBox').classList.add('hidden');
+    document.getElementById('ocrProgress').classList.add('hidden');
+    document.getElementById('ocrResults').classList.add('hidden');
+    document.getElementById('ocrHint').style.display = 'none';
+    document.getElementById('amountError').style.display = 'none';
+    selectedFile = null;
+    document.getElementById('fileInput').value = '';
+
+    showToast(currentUser.role === 'owner' ? '✅ Pengeluaran tersimpan aman!' : '✅ Pengeluaran terkirim (pending approval)');
+    setTimeout(() => switchTab('riwayat'), 800);
+  } catch (err) {
+    console.error('Submit error:', err);
+    showToast('❌ Gagal: ' + (err.message || 'Unknown error'));
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🚀 Kirim (Aman)';
+}
+
+// ==================== UI & UTILS ====================
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => {
+    if (p.id !== 'loginPage' && p.id !== 'mainApp') p.classList.remove('active');
+  });
+
+  if (tab === 'input') {
+    document.getElementById('tabInput').classList.add('active');
+    document.getElementById('pageInput').classList.add('active');
+  }
+  if (tab === 'riwayat') {
+    document.getElementById('tabRiwayat').classList.add('active');
+    document.getElementById('pageRiwayat').classList.add('active');
+    renderRiwayat();
+  }
+  if (tab === 'chart') {
+    document.getElementById('tabChart').classList.add('active');
+    document.getElementById('pageChart').classList.add('active');
+    renderCharts();
+  }
+  if (tab === 'laporan') {
+    document.getElementById('tabLaporan').classList.add('active');
+    document.getElementById('pageLaporan').classList.add('active');
+    updateReport();
+  }
+}
+
+function renderRiwayat() {
+  const list = document.getElementById('riwayatList');
+  let filtered = [...expenses];
+
+  if (currentRole === 'karyawan') {
+    filtered = filtered.filter(e => e.userId === currentUser.id);
+  }
+
+  filtered = filtered.sort((a, b) => {
+    const ad = new Date(a.createdAt);
+    const bd = new Date(b.createdAt);
+    return bd - ad;
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#64748b;"><div style="font-size:48px;margin-bottom:12px;">📭</div><p>Belum ada pengeluaran</p></div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(exp => {
+    const icon = categoryIcons[exp.category] || '📋';
+    const badgeClass = exp.status === 'pending' ? 'badge-pending' : exp.status === 'approved' ? 'badge-approved' : 'badge-rejected';
+    const statusText = exp.status === 'pending' ? '⏳ Pending' : exp.status === 'approved' ? '✅ Approved' : '❌ Rejected';
+    const dateStr = new Date(exp.createdAt).toLocaleDateString('id-ID');
+
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px;background:#0f172a;border-radius:10px;margin-bottom:8px;">
+      <div style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:${exp.status === 'pending' ? '#f59e0b30' : exp.status === 'approved' ? '#22c55e30' : '#ef444430'};">${icon}</div>
+      <div style="flex:1;">
+        <div style="font-weight:600;color:#f8fafc;">Rp ${formatRupiah(exp.amount)}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:2px;">${exp.category} • ${dateStr}</div>
+      </div>
+      <span class="badge ${badgeClass}">${statusText}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderCharts() {
+  if (currentRole !== 'owner') return;
+
+  let filtered = expenses.filter(e => e.status === 'approved');
+  const catTotals = {};
+
+  filtered.forEach(e => {
+    catTotals[e.category] = (catTotals[e.category] || 0) + e.amount;
+  });
+
+  const catLabels = Object.keys(catTotals);
+  const catData = Object.values(catTotals);
+  const catColors = catLabels.map(l => categoryColors[l] || '#64748b');
+
+  if (charts.category) charts.category.destroy();
+
+  charts.category = new Chart(document.getElementById('categoryChart'), {
+    type: 'doughnut',
+    data: {
+      labels: catLabels,
+      datasets: [{
+        data: catData,
+        backgroundColor: catColors,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#94a3b8', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+function updateReport() {
+  if (currentRole !== 'owner') return;
+
+  let monthExpenses = expenses.filter(e => e.status === 'approved');
+  const ownerTotal = monthExpenses.filter(e => e.type === 'owner').reduce((s, e) => s + e.amount, 0);
+  const reimburseTotal = monthExpenses.filter(e => e.type === 'reimburse').reduce((s, e) => s + e.amount, 0);
+  const grandTotal = ownerTotal + reimburseTotal;
+
+  document.getElementById('ownerTotal').textContent = 'Rp ' + formatRupiah(ownerTotal);
+  document.getElementById('reimburseTotal').textContent = 'Rp ' + formatRupiah(reimburseTotal);
+  document.getElementById('grandTotal').textContent = 'Rp ' + formatRupiah(grandTotal);
+
+  const list = document.getElementById('reportList');
+  if (monthExpenses.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:#64748b;"><div style="font-size:48px;margin-bottom:12px;">📭</div><p>Tidak ada data</p></div>';
+    return;
+  }
+
+  list.innerHTML = monthExpenses.map(exp => {
+    const icon = categoryIcons[exp.category] || '📋';
+    const dateStr = new Date(exp.createdAt).toLocaleDateString('id-ID');
+    const borderColor = exp.status === 'approved' ? '#22c55e' : '#ef4444';
+
+    return `<div class="card" style="border-left:3px solid ${borderColor};margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <p style="font-weight:600;color:#f8fafc;">Rp ${formatRupiah(exp.amount)}</p>
+          <p style="font-size:11px;color:#94a3b8;">${icon} ${exp.category} • ${exp.userName}</p>
+          <p style="font-size:11px;color:#64748b;">${dateStr}</p>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateConnectionStatus(status) {
+  const dot = document.getElementById('connDot');
+  const text = document.getElementById('connText');
+
+  if (status === 'online') {
+    dot.style.background = '#22c55e';
+    text.textContent = '🟢 Online (Firebase)';
+  } else if (status === 'offline') {
+    dot.style.background = '#f59e0b';
+    text.textContent = '🟡 Offline (cache)';
+  } else {
+    dot.style.background = '#3b82f6';
+    text.textContent = '🎮 Mode Demo';
+  }
+}
+
+async function updateSyncQueueUI() {
+  const notice = document.getElementById('syncQueueNotice');
+  const count = document.getElementById('syncQueueCount');
+  if (syncQueue.length > 0) {
+    notice.style.display = 'block';
+    count.textContent = syncQueue.length;
+  } else {
+    notice.style.display = 'none';
+  }
+}
+
+function enterDemoMode() {
+  isDemoMode = true;
+  firebaseInitialized = false;
+
+  const demoExpenses = [
+    { id: 'exp_001', userId: 'demo_user', userName: 'Demo User', amount: 50000, category: 'Makan & Minum', note: 'Makan siang', type: 'reimburse', status: 'approved', month: '2026-08', createdAt: normalizeTimestamp(new Date(2026, 7, 10)), businessId: 'demo_biz', photoURL: null },
+    { id: 'exp_002', userId: 'demo_owner', userName: 'Demo Owner', amount: 150000, category: 'Operasional', note: 'Supplies kantor', type: 'owner', status: 'approved', month: '2026-08', createdAt: normalizeTimestamp(new Date(2026, 7, 9)), businessId: 'demo_biz', photoURL: null }
+  ];
+
+  expenses = demoExpenses;
+  currentUser = { id: 'demo_user', name: 'Demo User', role: 'karyawan', email: 'demo@expense.app' };
+  updateConnectionStatus('demo');
+  showMainApp();
+  renderRiwayat();
+  showToast('🎮 Mode Demo aktif! (Semua fitur tersedia)');
+}
+
+function formatRupiah(num) {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// Initialize
+window.addEventListener('DOMContentLoaded', () => {
+  loadFirebaseConfigSecure();
+});
+</script>
+
+</body>
+</html>

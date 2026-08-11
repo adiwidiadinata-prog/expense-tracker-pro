@@ -14,6 +14,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 
+<!-- Midtrans Snap.js untuk pembayaran QRIS -->
+<!-- Ganti ke https://app.midtrans.com/snap/snap.js saat production -->
+<script src="https://app.sandbox.midtrans.com/snap/snap.js"
+  data-client-key="YOUR_MIDTRANS_CLIENT_KEY"></script>
+
 <!-- TweetNaCl.js untuk encryption -->
 <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
 
@@ -159,6 +164,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <button class="tab" onclick="switchTab('riwayat')" id="tabRiwayat">📋 Riwayat</button>
     <button class="tab" onclick="switchTab('chart')" id="tabChart">📊 Grafik</button>
     <button class="tab" onclick="switchTab('laporan')" id="tabLaporan" style="display:none;">📑 Laporan</button>
+    <button class="tab" onclick="switchTab('pro')" id="tabPro" style="display:none;">💎 Pro</button>
+  </div>
+
+  <!-- SUBSCRIPTION BANNER -->
+  <div id="subBanner" class="container" style="padding-top:0;display:none;">
+    <div id="subBannerCard" class="card" style="padding:10px 14px;margin-bottom:0;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <span id="subBannerText" style="font-size:12px;color:#f59e0b;">⏳ Trial: 14 hari tersisa</span>
+      <button onclick="switchTab('pro')" style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;">Upgrade</button>
+    </div>
   </div>
 
   <!-- TAB: INPUT -->
@@ -256,6 +270,54 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div id="reportList"></div>
   </div>
 </div>
+
+  <!-- PAGE: PRO SUBSCRIPTION -->
+  <div id="pagePro" class="page container" style="padding-top:8px;">
+    <div class="card" style="text-align:center;padding:20px;">
+      <div style="font-size:48px;margin-bottom:8px;">💎</div>
+      <h2 style="color:#f8fafc;margin-bottom:4px;">Expense Tracker Pro</h2>
+      <p id="subStatusText" style="font-size:13px;color:#94a3b8;margin-bottom:16px;">Cek status langganan...</p>
+      <div id="subActiveBox" style="display:none;background:#22c55e20;border:1px solid #22c55e;border-radius:10px;padding:14px;margin-bottom:16px;">
+        <p style="color:#86efac;font-weight:600;font-size:14px;">✅ Langganan Aktif</p>
+        <p id="subEndDate" style="color:#94a3b8;font-size:12px;margin-top:4px;"></p>
+      </div>
+      <div id="subExpiredBox" style="display:none;background:#ef444420;border:1px solid #ef4444;border-radius:10px;padding:14px;margin-bottom:16px;">
+        <p style="color:#fca5a5;font-weight:600;font-size:14px;">⚠️ Langganan Tidak Aktif</p>
+        <p style="color:#94a3b8;font-size:12px;margin-top:4px;">Upgrade untuk lanjutkan menggunakan semua fitur</p>
+      </div>
+    </div>
+    <div class="card">
+      <p class="label" style="color:#60a5fa;margin-bottom:12px;">🎯 Pilih Paket</p>
+      <div id="planMonthly" onclick="selectPlan('monthly')" style="background:#334155;border-radius:10px;padding:16px;margin-bottom:10px;cursor:pointer;border:2px solid #3b82f6;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div><p style="font-weight:700;color:#f8fafc;font-size:15px;">Pro Bulanan</p><p style="color:#94a3b8;font-size:12px;">Bayar per bulan</p></div>
+          <div style="text-align:right;"><p style="font-weight:700;color:#3b82f6;font-size:18px;">Rp 25.000</p><p style="color:#94a3b8;font-size:11px;">/bulan</p></div>
+        </div>
+      </div>
+      <div id="planAnnual" onclick="selectPlan('annual')" style="background:#334155;border-radius:10px;padding:16px;cursor:pointer;border:2px solid transparent;position:relative;">
+        <div style="position:absolute;top:-8px;right:12px;background:#22c55e;color:#000;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;">HEMAT 17%</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div><p style="font-weight:700;color:#f8fafc;font-size:15px;">Pro Tahunan</p><p style="color:#94a3b8;font-size:12px;">Setara Rp 20.833/bulan</p></div>
+          <div style="text-align:right;"><p style="font-weight:700;color:#3b82f6;font-size:18px;">Rp 250.000</p><p style="color:#94a3b8;font-size:11px;">/tahun</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="label" style="color:#60a5fa;margin-bottom:10px;">💳 Pembayaran via</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <span style="background:#334155;border-radius:6px;padding:6px 10px;font-size:12px;">📱 QRIS</span>
+        <span style="background:#334155;border-radius:6px;padding:6px 10px;font-size:12px;">💚 GoPay</span>
+        <span style="background:#334155;border-radius:6px;padding:6px 10px;font-size:12px;">💜 OVO</span>
+        <span style="background:#334155;border-radius:6px;padding:6px 10px;font-size:12px;">💙 DANA</span>
+        <span style="background:#334155;border-radius:6px;padding:6px 10px;font-size:12px;">🏦 BCA/Mandiri/BNI/BRI</span>
+      </div>
+    </div>
+    <button id="btnSubscribe" class="btn btn-success" style="margin-bottom:8px;" onclick="subscribeNow()">💎 Bayar Sekarang – Rp 25.000</button>
+    <div class="card" id="invoiceSection" style="display:none;">
+      <p class="label" style="color:#60a5fa;margin-bottom:10px;">📄 Riwayat Pembayaran</p>
+      <div id="invoiceList"></div>
+    </div>
+  </div>
 
 <div id="toast" class="toast">Notifikasi</div>
 
@@ -1029,6 +1091,269 @@ function showToast(msg) {
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2500);
 }
+
+// ==================== BACKEND API INTEGRATION ====================
+// Ganti dengan URL Railway setelah deploy
+const BACKEND_URL = 'https://expense-tracker-pro-backend.railway.app';
+let backendJwt = null;
+let selectedPlanId = 'monthly';
+let subscriptionInfo = null;
+
+/**
+ * Panggil backend API dengan JWT authentication
+ */
+async function callBackend(endpoint, method = 'GET', body = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (backendJwt) headers['Authorization'] = `Bearer ${backendJwt}`;
+
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+
+  const res = await fetch(`${BACKEND_URL}${endpoint}`, opts);
+  const data = await res.json();
+
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+/**
+ * Login ke backend setelah Firebase auth — dapatkan JWT + info subscription
+ */
+async function loginToBackend(firebaseUser) {
+  try {
+    const firebaseToken = await firebaseUser.getIdToken();
+    const result = await callBackend('/api/auth/login', 'POST', { firebaseToken });
+
+    backendJwt = result.token;
+    sessionStorage.setItem('backendJwt', result.token);
+
+    // Load subscription info
+    await checkSubscription();
+
+  } catch (err) {
+    console.warn('Backend login failed (offline mode):', err.message);
+    // App tetap berjalan dengan Firebase langsung
+  }
+}
+
+/**
+ * Cek status langganan dari backend
+ */
+async function checkSubscription() {
+  try {
+    const result = await callBackend('/api/users/me');
+    const biz = result.business;
+
+    if (!biz) return;
+
+    subscriptionInfo = biz;
+    const now = new Date();
+    const banner = document.getElementById('subBanner');
+    const bannerText = document.getElementById('subBannerText');
+
+    if (biz.plan === 'trial') {
+      const trialEnd = new Date(biz.trialEndDate);
+      const daysLeft = Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24));
+
+      if (daysLeft > 0) {
+        bannerText.textContent = `⏳ Trial: ${daysLeft} hari tersisa`;
+        if (banner && currentUser?.role === 'owner') banner.style.display = 'block';
+      } else {
+        bannerText.textContent = '⚠️ Trial berakhir — upgrade sekarang';
+        if (banner && currentUser?.role === 'owner') banner.style.display = 'block';
+      }
+      updateSubPage(biz, daysLeft);
+
+    } else if (biz.plan === 'pro') {
+      const subEnd = new Date(biz.subscriptionEndDate);
+      const daysLeft = Math.ceil((subEnd - now) / (1000 * 60 * 60 * 24));
+
+      if (daysLeft <= 7) {
+        bannerText.textContent = `💎 Pro: ${daysLeft} hari lagi — perpanjang`;
+        if (banner && currentUser?.role === 'owner') banner.style.display = 'block';
+      } else {
+        if (banner) banner.style.display = 'none';
+      }
+      updateSubPage(biz, daysLeft);
+    }
+
+    // Show invoice history
+    await loadInvoices();
+
+  } catch (err) {
+    console.warn('Check subscription failed:', err.message);
+  }
+}
+
+/**
+ * Update tampilan halaman Pro
+ */
+function updateSubPage(biz, daysLeft) {
+  const statusText = document.getElementById('subStatusText');
+  const activeBox = document.getElementById('subActiveBox');
+  const expiredBox = document.getElementById('subExpiredBox');
+  const endDateEl = document.getElementById('subEndDate');
+
+  if (!statusText) return;
+
+  if (biz.plan === 'trial') {
+    if (daysLeft > 0) {
+      statusText.textContent = `🎁 Free Trial — ${daysLeft} hari tersisa`;
+      activeBox.style.display = 'block';
+      expiredBox.style.display = 'none';
+      if (endDateEl) endDateEl.textContent = `Trial berakhir: ${new Date(biz.trialEndDate).toLocaleDateString('id-ID')}`;
+    } else {
+      statusText.textContent = '⚠️ Trial sudah berakhir';
+      activeBox.style.display = 'none';
+      expiredBox.style.display = 'block';
+    }
+  } else if (biz.plan === 'pro') {
+    statusText.textContent = '💎 Pro Aktif';
+    activeBox.style.display = 'block';
+    expiredBox.style.display = 'none';
+    if (endDateEl) endDateEl.textContent = `Aktif hingga: ${new Date(biz.subscriptionEndDate).toLocaleDateString('id-ID')} (${daysLeft} hari lagi)`;
+  }
+}
+
+/**
+ * Load riwayat pembayaran
+ */
+async function loadInvoices() {
+  try {
+    if (currentUser?.role !== 'owner') return;
+    const result = await callBackend('/api/payment/invoices');
+    const invoices = result.invoices || [];
+
+    const section = document.getElementById('invoiceSection');
+    const list = document.getElementById('invoiceList');
+
+    if (invoices.length === 0 || !section) return;
+
+    section.style.display = 'block';
+    list.innerHTML = invoices.map(inv => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #334155;">
+        <div>
+          <p style="font-size:13px;color:#f8fafc;">${inv.plan === 'annual' ? 'Pro Tahunan' : 'Pro Bulanan'}</p>
+          <p style="font-size:11px;color:#64748b;">${new Date(inv.createdAt).toLocaleDateString('id-ID')}</p>
+        </div>
+        <div style="text-align:right;">
+          <p style="font-size:13px;color:#f8fafc;">Rp ${formatRupiah(inv.amount)}</p>
+          <span style="font-size:11px;${inv.status === 'paid' ? 'color:#22c55e' : inv.status === 'pending' ? 'color:#f59e0b' : 'color:#ef4444'}">
+            ${inv.status === 'paid' ? '✅ Lunas' : inv.status === 'pending' ? '⏳ Menunggu' : '❌ Gagal'}
+          </span>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.warn('Load invoices failed:', err.message);
+  }
+}
+
+/**
+ * Pilih plan (monthly/annual)
+ */
+function selectPlan(plan) {
+  selectedPlanId = plan;
+
+  document.getElementById('planMonthly').style.borderColor = plan === 'monthly' ? '#3b82f6' : 'transparent';
+  document.getElementById('planAnnual').style.borderColor = plan === 'annual' ? '#3b82f6' : 'transparent';
+
+  const btn = document.getElementById('btnSubscribe');
+  if (btn) btn.textContent = `💎 Bayar Sekarang — ${plan === 'annual' ? 'Rp 250.000/tahun' : 'Rp 25.000/bulan'}`;
+}
+
+/**
+ * Buka Midtrans Snap untuk pembayaran
+ */
+async function subscribeNow() {
+  if (!backendJwt) {
+    showToast('❌ Login diperlukan untuk berlangganan');
+    return;
+  }
+
+  const btn = document.getElementById('btnSubscribe');
+  btn.disabled = true;
+  btn.textContent = '⏳ Membuat pembayaran...';
+
+  try {
+    // Minta token dari backend
+    const result = await callBackend('/api/payment/subscribe', 'POST', { plan: selectedPlanId });
+
+    btn.disabled = false;
+    btn.textContent = `💎 Bayar Sekarang`;
+
+    // Buka Midtrans Snap popup
+    if (window.snap && result.token) {
+      window.snap.pay(result.token, {
+        onSuccess: async (res) => {
+          showToast('✅ Pembayaran berhasil! Langganan diaktifkan.');
+          await checkSubscription();
+          switchTab('input');
+        },
+        onPending: (res) => {
+          showToast('⏳ Menunggu pembayaran. Cek email untuk instruksi.');
+        },
+        onError: (res) => {
+          showToast('❌ Pembayaran gagal. Coba lagi.');
+        },
+        onClose: () => {
+          showToast('💡 Pembayaran dibatalkan');
+        }
+      });
+    } else if (result.redirectUrl) {
+      // Fallback: buka halaman pembayaran
+      window.open(result.redirectUrl, '_blank');
+    } else {
+      showToast('❌ Gagal memuat sistem pembayaran');
+    }
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = '💎 Bayar Sekarang';
+    showToast('❌ ' + (err.message || 'Gagal membuat pembayaran'));
+    console.error('Subscribe error:', err);
+  }
+}
+
+// ==================== PATCH: Login agar panggil backend ====================
+const _origLoginSecure = doLoginSecure;
+doLoginSecure = async function() {
+  await _origLoginSecure();
+  // Setelah login Firebase berhasil, login ke backend juga
+  if (auth && auth.currentUser) {
+    await loginToBackend(auth.currentUser);
+  }
+};
+
+// Restore JWT dari session jika ada
+backendJwt = sessionStorage.getItem('backendJwt') || null;
+
+// ==================== PATCH: switchTab agar handle 'pro' ====================
+const _origSwitchTab = switchTab;
+switchTab = function(tab) {
+  if (tab === 'pro') {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => {
+      if (p.id !== 'loginPage' && p.id !== 'mainApp') p.classList.remove('active');
+    });
+    document.getElementById('tabPro').classList.add('active');
+    document.getElementById('pagePro').classList.add('active');
+    checkSubscription();
+    return;
+  }
+  _origSwitchTab(tab);
+};
+
+// ==================== PATCH: showMainApp agar tampil tab Pro ====================
+const _origShowMainApp = showMainApp;
+showMainApp = function() {
+  _origShowMainApp();
+  // Tampilkan tab Pro untuk owner
+  if (currentUser?.role === 'owner') {
+    const tabPro = document.getElementById('tabPro');
+    if (tabPro) tabPro.style.display = 'block';
+  }
+};
 
 // Initialize
 window.addEventListener('DOMContentLoaded', () => {

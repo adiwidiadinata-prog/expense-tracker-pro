@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+
+    function isKaryawan() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'karyawan';
+    }
+
+    function belongsToSameBusiness(businessId) {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.businessId == businessId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId || isOwner();
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // Expenses collection
+    match /expenses/{docId} {
+      allow read: if isOwner() ||
+                    (isKaryawan() && resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() &&
+                      request.resource.data.userId == request.auth.uid;
+      allow update: if (resource.data.userId == request.auth.uid &&
+                        resource.data.status == 'pending') ||
+                       (isOwner() &&
+                        request.resource.data.status in ['approved', 'rejected']);
+      allow delete: if isOwner();
+    }
+
+    // Invitation codes
+    match /inviteCodes/{code} {
+      allow read, create: if isOwner();
+      allow delete: if false;
+    }
+
+    // Businesses
+    match /businesses/{docId} {
+      allow read: if belongsToSameBusiness(docId);
+      allow create, update: if isOwner();
+      allow delete: if false;
+    }
+
+    // Audit logs (read-only for users)
+    match /auditLogs/{logId} {
+      allow read: if isOwner();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // Error tracking (write-only for authenticated users, read for owner)
+    match /errors/{errorId} {
+      allow read: if isOwner();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // Performance metrics (write-only for authenticated users, read for owner)
+    match /metrics/{metricId} {
+      allow read: if isOwner();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

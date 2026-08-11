@@ -9,6 +9,7 @@
 
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
@@ -274,6 +275,53 @@ let expenses = [], businesses = [];
 let db = null, storage = null, auth = null;
 let charts = {}, syncQueue = [];
 
+// ==================== MONITORING & ERROR TRACKING ====================
+async function logError(errorMessage, stackTrace, context = {}) {
+  try {
+    console.error('[ErrorTracker]', errorMessage, context);
+    if (db && currentUser) {
+      await db.collection('errors').add({
+        message: errorMessage,
+        stack: stackTrace || '',
+        context: context,
+        userEmail: currentUser.email || 'anonymous',
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
+        severity: 'error'
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to log error to Firestore:', e.message);
+  }
+}
+
+// Catch uncaught errors
+window.addEventListener('error', (event) => {
+  logError(event.message, event.error?.stack, {
+    type: 'uncaughtError',
+    line: event.lineno,
+    col: event.colno,
+    file: event.filename
+  });
+});
+
+// Catch unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+  logError(
+    event.reason?.message || String(event.reason),
+    event.reason?.stack,
+    { type: 'unhandledRejection' }
+  );
+});
+
+// Log performance metrics on page load
+window.addEventListener('load', () => {
+  const perf = window.performance.timing;
+  const loadTime = perf.loadEventEnd - perf.navigationStart;
+  console.log(`✓ Page load: ${loadTime}ms`);
+});
+
 const categoryIcons = {'Makan & Minum':'🍽️','Transportasi':'🚗','Operasional':'📦','Pembelian Barang':'🛒','Lainnya':'📋'};
 const categoryColors = {'Makan & Minum':'#f59e0b','Transportasi':'#3b82f6','Operasional':'#8b5cf6','Pembelian Barang':'#22c55e','Lainnya':'#64748b'};
 
@@ -411,6 +459,8 @@ async function initFirebase() {
   try {
     if (!firebase.apps.length) {
       firebase.initializeApp(config);
+      // Initialize App Check with reCAPTCHA v3
+      firebase.appCheck().activate('6LcF6n8tAAAAIA8cqetFFJdg9PTRpAm9RM1pZZq', true);
     }
     db = firebase.firestore();
     storage = firebase.storage();

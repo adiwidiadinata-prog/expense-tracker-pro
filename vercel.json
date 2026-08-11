@@ -1,5 +1,6 @@
 {
   "buildCommand": "echo 'Static HTML deployment'",
+  "installCommand": "echo 'Skip install'",
   "outputDirectory": ".",
   "env": {
     "NODE_ENV": "production"

@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@testing-library/dom": "^9.3.0",
-    "@testing-library/html": "^9.3.0",
+    "@testing-library/jest-dom": "^6.1.0",
     "eslint": "^8.54.0",
     "http-server": "^14.1.1",
     "jest": "^29.7.0",

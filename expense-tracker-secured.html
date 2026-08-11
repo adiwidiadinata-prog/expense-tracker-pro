@@ -490,10 +490,17 @@ async function saveFirebaseConfigSecure() {
 
   try {
     await saveToIndexedDB('config', 'firebase', config);
-    showToast('✅ Config tersimpan aman di IndexedDB!');
+    showToast('✅ Config tersimpan! Menginisialisasi Firebase...');
     // Clear input untuk security
     document.getElementById('cfgApiKey').value = '';
     document.getElementById('cfgAuthDomain').value = '';
+    // Auto-initialize Firebase with new config
+    const ok = await initFirebase();
+    if (ok) {
+      showToast('✅ Firebase siap! Silakan login.');
+    } else {
+      showToast('⚠️ Config tersimpan tapi Firebase gagal init. Cek apiKey.');
+    }
   } catch (e) {
     showToast('❌ Gagal menyimpan config: ' + e.message);
   }
@@ -516,14 +523,19 @@ async function loadFirebaseConfigSecure() {
 
 async function initFirebase() {
   const config = await loadFirebaseConfigSecure();
-  if (!config) return false;
+  if (!config || !config.apiKey) {
+    console.warn('Firebase config missing or apiKey empty');
+    return false;
+  }
 
   try {
-    if (!firebase.apps.length) {
-      firebase.initializeApp(config);
-      // Initialize App Check with reCAPTCHA v3
-      firebase.appCheck().activate('6LcF6n8tAAAAIA8cqetFFJdg9PTRpAm9RM1pZZq', true);
+    // Delete existing apps to allow re-initialization (e.g. after config update)
+    if (firebase.apps.length) {
+      await Promise.all(firebase.apps.map(app => app.delete()));
     }
+    firebase.initializeApp(config);
+    // Initialize App Check with reCAPTCHA v3
+    firebase.appCheck().activate('6LcF6n8tAAAAIA8cqetFFJdg9PTRpAm9RM1pZZq', true);
     db = firebase.firestore();
     storage = firebase.storage();
     auth = firebase.auth();

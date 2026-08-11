@@ -84,6 +84,38 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </head>
 <body>
 
+<!-- MODAL REGISTER -->
+<div id="modalRegister" class="modal-overlay">
+  <div class="modal-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 style="font-size:18px;">📝 Buat Akun Baru</h3>
+      <button onclick="hideRegisterForm()" style="background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+
+    <label class="label">Nama Lengkap</label>
+    <input type="text" id="regName" class="input" placeholder="Nama kamu" style="margin-bottom:10px;" autocomplete="name">
+
+    <label class="label">Email</label>
+    <input type="email" id="regEmail" class="input" placeholder="nama@email.com" style="margin-bottom:10px;" autocomplete="email">
+
+    <label class="label">Role</label>
+    <select id="regRole" class="select" style="margin-bottom:10px;">
+      <option value="owner">👔 Owner / Pemilik Bisnis</option>
+      <option value="karyawan">👤 Karyawan</option>
+    </select>
+
+    <label class="label">Password</label>
+    <input type="password" id="regPassword" class="input" placeholder="Min. 6 karakter" style="margin-bottom:10px;" autocomplete="new-password">
+
+    <label class="label">Ulangi Password</label>
+    <input type="password" id="regPassword2" class="input" placeholder="Ulangi password" style="margin-bottom:14px;" autocomplete="new-password">
+
+    <button id="btnRegister" class="btn btn-success" onclick="doRegisterSecure()">📝 Daftar Sekarang</button>
+    <p id="regStatus" style="text-align:center;margin-top:10px;font-size:12px;"></p>
+    <p style="font-size:11px;color:#64748b;text-align:center;margin-top:8px;">Pastikan Firebase Config sudah disimpan sebelum mendaftar</p>
+  </div>
+</div>
+
 <!-- LOGIN PAGE -->
 <div id="loginPage" class="page active">
   <div class="login-form">
@@ -534,8 +566,6 @@ async function initFirebase() {
       await Promise.all(firebase.apps.map(app => app.delete()));
     }
     firebase.initializeApp(config);
-    // Initialize App Check with reCAPTCHA v3
-    firebase.appCheck().activate('6LcF6n8tAAAAIA8cqetFFJdg9PTRpAm9RM1pZZq', true);
     db = firebase.firestore();
     storage = firebase.storage();
     auth = firebase.auth();
@@ -632,7 +662,53 @@ async function doLoginSecure() {
 }
 
 function showRegisterForm() {
-  showToast('📝 Fitur registrasi akan dibuka segera');
+  document.getElementById('modalRegister').classList.add('active');
+}
+
+function hideRegisterForm() {
+  document.getElementById('modalRegister').classList.remove('active');
+  document.getElementById('regStatus').textContent = '';
+}
+
+async function doRegisterSecure() {
+  const name = document.getElementById('regName').value?.trim();
+  const email = document.getElementById('regEmail').value?.trim();
+  const password = document.getElementById('regPassword').value;
+  const password2 = document.getElementById('regPassword2').value;
+  const statusEl = document.getElementById('regStatus');
+
+  if (!name || name.length < 2) { statusEl.textContent = '❌ Nama minimal 2 karakter'; statusEl.style.color = '#ef4444'; return; }
+  if (!validateEmail(email)) { statusEl.textContent = '❌ Email tidak valid'; statusEl.style.color = '#ef4444'; return; }
+  if (!validatePassword(password)) { statusEl.textContent = '❌ Password minimal 6 karakter'; statusEl.style.color = '#ef4444'; return; }
+  if (password !== password2) { statusEl.textContent = '❌ Password tidak cocok'; statusEl.style.color = '#ef4444'; return; }
+
+  const btn = document.getElementById('btnRegister');
+  btn.disabled = true;
+  btn.textContent = '⏳ Mendaftar...';
+  statusEl.textContent = '';
+
+  try {
+    if (!(await initFirebase())) throw new Error('Firebase belum dikonfigurasi. Simpan Config Firebase dulu.');
+    const role = document.getElementById('regRole').value;
+    const userCred = await auth.createUserWithEmailAndPassword(email, password);
+    const newUser = { id: userCred.user.uid, name, email, role, createdAt: new Date().toISOString() };
+    await db.collection('users').doc(userCred.user.uid).set(newUser);
+    if (role === 'owner') {
+      const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      await db.collection('businesses').add({ ownerUid: userCred.user.uid, ownerName: name, inviteCode, createdAt: new Date().toISOString() });
+    }
+    statusEl.textContent = '✅ Akun berhasil dibuat! Silakan login.';
+    statusEl.style.color = '#22c55e';
+    setTimeout(() => hideRegisterForm(), 2000);
+  } catch (e) {
+    let msg = e.message;
+    if (msg.includes('email-already-in-use')) msg = 'Email sudah terdaftar, silakan login.';
+    statusEl.textContent = '❌ ' + msg;
+    statusEl.style.color = '#ef4444';
+  }
+
+  btn.disabled = false;
+  btn.textContent = '📝 Daftar Sekarang';
 }
 
 function showMainApp() {

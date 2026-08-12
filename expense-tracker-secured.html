@@ -38,13 +38,18 @@ button,input,select{font-family:inherit}
 .splash-fill{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--purple));border-radius:3px;animation:splashFill 1.1s ease forwards}
 @keyframes splashFill{to{width:100%}}
 
-/* ========== ONBOARDING (SELANJUTNYA) ========== */
-#onboardPage{min-height:100vh;display:flex;flex-direction:column;background:var(--bg)}
-.ob-skip{position:absolute;top:18px;right:18px;z-index:5;background:none;border:none;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;padding:8px 10px}
-.ob-track{flex:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
-.ob-track::-webkit-scrollbar{display:none}
-.ob-slide{flex:0 0 100%;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;text-align:center}
+/* ========== ONBOARDING (SELANJUTNYA) — PER HALAMAN ========== */
+#onboardPage{min-height:100vh;display:flex;flex-direction:column;background:var(--bg);position:relative}
+.ob-topbar{display:flex;align-items:center;justify-content:space-between;padding:calc(16px + env(safe-area-inset-top)) 18px 8px}
+.ob-back{background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:6px 8px;visibility:hidden;line-height:1}
+.ob-back.show{visibility:visible}
+.ob-skip{background:none;border:none;color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;padding:8px 10px}
+.ob-screens{flex:1;position:relative;overflow:hidden}
+.ob-screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 32px;text-align:center;opacity:0;transform:translateX(24px);transition:opacity .28s ease,transform .28s ease;pointer-events:none}
+.ob-screen.active{opacity:1;transform:translateX(0);pointer-events:auto}
+.ob-screen.exit-left{transform:translateX(-24px)}
 .ob-icon-ring{width:140px;height:140px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:64px;margin-bottom:32px}
+.ob-step-lbl{font-size:12px;font-weight:800;color:var(--blue);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px}
 .ob-title{font-size:22px;font-weight:900;color:var(--text);margin-bottom:10px;letter-spacing:-.3px}
 .ob-desc{font-size:14px;color:var(--muted);line-height:1.6;max-width:300px}
 .ob-footer{padding:20px 24px calc(20px + env(safe-area-inset-bottom))}
@@ -356,32 +361,40 @@ button,input,select{font-family:inherit}
 <!-- ======================================================= -->
 <!-- SELANJUTNYA: ONBOARDING -->
 <!-- ======================================================= -->
-<div id="onboardPage" class="page" style="position:relative">
-  <button class="ob-skip" onclick="finishOnboard()">Lewati</button>
-  <div class="ob-track" id="obTrack" onscroll="onObScroll()">
-    <div class="ob-slide">
+<div id="onboardPage" class="page">
+  <div class="ob-topbar">
+    <button class="ob-back" id="obBackBtn" onclick="obGo(-1)">←</button>
+    <button class="ob-skip" onclick="finishOnboard()">Lewati</button>
+  </div>
+
+  <div class="ob-screens">
+    <div class="ob-screen active" data-step="0">
+      <div class="ob-step-lbl">Halaman 1 dari 3</div>
       <div class="ob-icon-ring" style="background:rgba(79,142,247,.12)">📷</div>
       <div class="ob-title">Foto Struk, Otomatis Terbaca</div>
       <div class="ob-desc">Cukup foto struk belanja — nominal langsung terisi otomatis. Tidak perlu ketik manual.</div>
     </div>
-    <div class="ob-slide">
+    <div class="ob-screen" data-step="1">
+      <div class="ob-step-lbl">Halaman 2 dari 3</div>
       <div class="ob-icon-ring" style="background:rgba(45,204,112,.12)">✏️</div>
       <div class="ob-title">Catat Secepat Ketuk Angka</div>
       <div class="ob-desc">Numpad besar, kategori tinggal pilih. Cocok untuk pedagang yang butuh cepat dan simpel.</div>
     </div>
-    <div class="ob-slide">
+    <div class="ob-screen" data-step="2">
+      <div class="ob-step-lbl">Halaman 3 dari 3</div>
       <div class="ob-icon-ring" style="background:rgba(139,92,246,.12)">📊</div>
       <div class="ob-title">Laporan Siap Kapan Saja</div>
       <div class="ob-desc">Lihat total, grafik, dan unduh laporan PDF/CSV untuk usaha kamu — semua dalam satu halaman.</div>
     </div>
   </div>
+
   <div class="ob-footer">
     <div class="ob-dots">
       <div class="ob-dot on" data-i="0"></div>
       <div class="ob-dot" data-i="1"></div>
       <div class="ob-dot" data-i="2"></div>
     </div>
-    <button id="btnObNext" class="btn-main">Lanjut</button>
+    <button id="btnObNext" class="btn-main" onclick="obGo(1)">Lanjut</button>
   </div>
 </div>
 
@@ -674,21 +687,31 @@ async function bootApp(){
   },1300);
 }
 
-// Onboarding carousel
-function onObScroll(){
-  const track=el('obTrack');
-  const idx=Math.round(track.scrollLeft/track.clientWidth);
-  document.querySelectorAll('.ob-dot').forEach((d,i)=>d.classList.toggle('on',i===idx));
-  el('btnObNext').textContent=idx===2?'Mulai Sekarang':'Lanjut';
+// Onboarding — navigasi per halaman (bukan carousel)
+let obStep=0;
+const OB_TOTAL=3;
+function obRender(dir){
+  document.querySelectorAll('.ob-screen').forEach(s=>{
+    const step=parseInt(s.dataset.step);
+    s.classList.remove('active','exit-left');
+    if(step===obStep) s.classList.add('active');
+    else if(dir>0&&step<obStep) s.classList.add('exit-left');
+  });
+  document.querySelectorAll('.ob-dot').forEach((d,i)=>d.classList.toggle('on',i===obStep));
+  el('obBackBtn').classList.toggle('show',obStep>0);
+  el('btnObNext').textContent=obStep===OB_TOTAL-1?'Mulai Sekarang':'Lanjut';
 }
-el('btnObNext').addEventListener('click',()=>{
-  const track=el('obTrack');
-  const idx=Math.round(track.scrollLeft/track.clientWidth);
-  if(idx<2){ track.scrollTo({left:track.clientWidth*(idx+1),behavior:'smooth'}); }
-  else{ finishOnboard(); }
-});
+function obGo(dir){
+  vibrate(6);
+  const next=obStep+dir;
+  if(next<0) return;
+  if(next>=OB_TOTAL){ finishOnboard(); return; }
+  obStep=next;
+  obRender(dir);
+}
 function finishOnboard(){
   localStorage.setItem('cu_onboarded','1');
+  obStep=0;
   showPage('loginPage');
 }
 
